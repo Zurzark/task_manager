@@ -34,7 +34,7 @@ function initUI() {
             if (target) {
                 if (['list', 'kanban', 'calendar', 'quadrant'].includes(target)) {
                     store.currentViewMode = target;
-                } else if (['today', 'all', 'completed'].includes(target)) {
+                } else if (['today', 'all', 'completed', 'pending'].includes(target)) {
                     store.viewFilter = target;
                     // 重置选中状态
                     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('bg-gray-100', 'text-blue-600'));
@@ -162,17 +162,46 @@ function updateUI() {
 }
 
 function updateCounts() {
-    const counts = {
-        today: store.tasks.filter(t => t.status !== 'done' && (!t.dueDate || new Date(t.dueDate) < new Date(new Date().setDate(new Date().getDate()+1)))).length,
-        all: store.tasks.length,
-        completed: store.tasks.filter(t => t.status === 'done').length,
-        memory: memoryStore.memories.filter(m => m.enabled).length
-    };
+    // 侧边栏计数
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const in7Days = new Date(today); in7Days.setDate(today.getDate() + 7);
 
-    ['today', 'all', 'completed', 'memory'].forEach(key => {
-        const el = document.getElementById(`${key}-count`);
-        if (el) el.textContent = counts[key];
-    });
+    // 今日焦点逻辑：
+    // 1. 未完成
+    // 2. 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内)
+    const todayCount = store.tasks.filter(t => {
+        if (t.status === 'done') return false;
+        
+        const isFrog = t.isFrog;
+        const isUrgent = t.priority === 'urgent';
+        let isComingSoon = false;
+        if (t.dueDate) {
+            const d = new Date(t.dueDate);
+            isComingSoon = d >= today && d <= in7Days;
+        }
+        
+        return isFrog || isUrgent || isComingSoon;
+    }).length;
+
+    const allCount = store.tasks.length;
+    const completedCount = store.tasks.filter(t => t.status === 'done').length;
+    const pendingCount = store.tasks.filter(t => t.status !== 'done').length;
+    
+    document.getElementById('today-count').textContent = todayCount;
+    document.getElementById('all-count').textContent = allCount;
+    document.getElementById('completed-count').textContent = completedCount;
+    const pendingEl = document.getElementById('pending-count');
+    if (pendingEl) pendingEl.textContent = pendingCount;
+    
+    // 记忆库计数
+    const memCount = memoryStore.memories.length;
+    const memEl = document.getElementById('memory-count');
+    if (memEl) memEl.textContent = memCount;
+
+    // 费用显示
+    const totalCost = store.apiLogs.reduce((sum, log) => sum + (log.cost || 0), 0);
+    const costEl = document.getElementById('total-cost');
+    if (costEl) costEl.textContent = `¥${totalCost.toFixed(2)}`;
 }
 
 function renderCategoryList() {
@@ -261,7 +290,11 @@ async function handleAIParse() {
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
-        // updateTotalCost(); // If implemented
+        
+        // 更新总费用
+        const totalCost = store.apiLogs.reduce((sum, log) => sum + (log.cost || 0), 0);
+        const costEl = document.getElementById('total-cost');
+        if (costEl) costEl.textContent = `¥${totalCost.toFixed(2)}`;
     }
 }
 
@@ -1642,6 +1675,28 @@ window.updateDateRangeFilter = () => {
     // 重置分页
     store.pagination.list.page = 1;
     if (popover) popover.classList.add('hidden');
+    updateUI();
+};
+
+// 日历视图操作
+window.setCalendarView = (mode) => {
+    store.calendarView = mode;
+    updateUI();
+};
+
+window.moveCalendar = (delta) => {
+    const d = new Date(store.calendarDate);
+    if (store.calendarView === 'month') {
+        d.setMonth(d.getMonth() + delta);
+    } else {
+        d.setDate(d.getDate() + (delta * 7));
+    }
+    store.calendarDate = d;
+    updateUI();
+};
+
+window.resetCalendar = () => {
+    store.calendarDate = new Date();
     updateUI();
 };
 

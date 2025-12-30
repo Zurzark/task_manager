@@ -37,15 +37,31 @@ function getStatusConfig(status) {
 function getFilteredTasks() {
     const { tasks, viewFilter, categoryFilter, sortState, statusFilter, frogFilter, actionTypeFilter, dateRangeFilter } = store;
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    const in7Days = new Date(today); in7Days.setDate(today.getDate() + 7);
 
     let filtered = [...tasks];
 
     // 1. 视图筛选 (viewFilter)
     if (viewFilter === 'today') {
-        filtered = filtered.filter(t => t.status !== 'done' && (!t.dueDate || new Date(t.dueDate) < tomorrow));
+        filtered = filtered.filter(t => {
+            // 只展示未完成
+            if (t.status === 'done') return false;
+            
+            // 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内)
+            const isFrog = t.isFrog;
+            const isUrgent = t.priority === 'urgent';
+            let isComingSoon = false;
+            if (t.dueDate) {
+                const d = new Date(t.dueDate);
+                isComingSoon = d >= today && d <= in7Days; // today is 00:00, in7Days is +7 days
+            }
+            
+            return isFrog || isUrgent || isComingSoon;
+        });
     } else if (viewFilter === 'completed') {
         filtered = filtered.filter(t => t.status === 'done');
+    } else if (viewFilter === 'pending') {
+        filtered = filtered.filter(t => t.status !== 'done');
     } else if (viewFilter === 'all') {
         // all view shows all tasks (including done)
     }
@@ -305,7 +321,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
         else if (isFrog) rowBgClass = 'bg-green-50 shadow-sm border-l-4 border-green-500'; // 青蛙：高级绿，左侧强调
 
         // 标题颜色逻辑
-        let titleColorClass = 'text-gray-900';
+        let titleColorClass = 'text-gray-900 font-bold'; // 默认加粗
         if (task.priority === 'urgent') titleColorClass = 'text-red-700 font-bold';
         else if (task.priority === 'high') titleColorClass = 'text-yellow-700 font-bold';
         else if (task.priority === 'medium') titleColorClass = 'text-blue-700 font-bold';
@@ -462,10 +478,11 @@ export const render = {
         const fullTreeRoots = buildTaskTree(tasks);
         
         // 2. 基于树根进行分页
-        const totalItems = fullTreeRoots.length; // 修正：总数应该是根节点的数量，还是所有任务的数量？通常列表分页是基于行数。如果展开了子任务，行数会变。
-        // 这里简化逻辑：分页基于“根任务数量”。
+        // totalItems 应该展示筛选出的实际任务总数 (包括子任务)，但分页计算基于 root 数量
+        const totalItems = tasks.length; 
+        const totalRootItems = fullTreeRoots.length;
         
-        const totalPages = Math.ceil(totalItems / pageSize) || 1;
+        const totalPages = Math.ceil(totalRootItems / pageSize) || 1;
         const currentPage = Math.min(page, totalPages);
         
         const startIdx = (currentPage - 1) * pageSize;
@@ -510,7 +527,7 @@ export const render = {
                 <div class="flex justify-between items-center px-4 py-3 border-t bg-gray-50">
                     <div class="flex items-center gap-4">
                         <div class="text-xs text-gray-500">
-                            共 ${totalItems} 项，第 ${currentPage}/${totalPages} 页
+                            共 ${totalItems} 项 (其中父任务 ${pagedTreeRoots.length} 个)，第 ${currentPage}/${totalPages} 页
                         </div>
                         <div class="flex items-center gap-2 text-xs text-gray-500">
                             <span>每页:</span>
@@ -551,10 +568,10 @@ export const render = {
     kanban() {
         const tasks = getFilteredTasks();
         const columns = [
-            { id: 'urgent', title: '🔴 重要且紧急', items: [] },
-            { id: 'high', title: '🟠 重要不紧急', items: [] },
-            { id: 'medium', title: '� 不重要紧急', items: [] },
-            { id: 'low', title: '🟢 不重要不紧急', items: [] }
+            { id: 'urgent', title: '🔥重要且紧急', items: [] },
+            { id: 'high', title: '🌱重要不紧急', items: [] },
+            { id: 'medium', title: '🏃不重要紧急', items: [] },
+            { id: 'low', title: '🍵不重要不紧急', items: [] }
         ];
 
         tasks.forEach(t => {
@@ -639,37 +656,126 @@ export const render = {
 
     calendar() {
         const tasks = getFilteredTasks();
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const daysInMonth = lastDay.getDate();
-        const startDayOfWeek = firstDay.getDay();
+        // 筛选逻辑：只展示青蛙任务 或 重要且紧急任务
+        const filteredTasks = tasks.filter(t => t.isFrog || t.priority === 'urgent');
 
-        let html = `
-            <div class="h-full flex flex-col bg-white rounded-lg shadow overflow-hidden">
-                <div class="p-4 border-b font-bold text-center">${year}年 ${month + 1}月</div>
-                <div class="calendar-header bg-gray-50 pt-2">
-                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
-                </div>
-                <div class="calendar-grid flex-1 overflow-y-auto">
-        `;
-        for (let i = 0; i < startDayOfWeek; i++) html += `<div class="calendar-cell bg-gray-50"></div>`;
-        for (let d = 1; d <= daysInMonth; d++) {
-            const currentDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dayTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(currentDateStr));
-            html += `
-                <div class="calendar-cell hover:bg-blue-50 transition">
-                    <div class="text-xs font-bold text-gray-500 mb-1">${d}</div>
-                    <div class="space-y-1">
-                        ${dayTasks.map(t => `<div class="text-[10px] truncate px-1 rounded bg-blue-100 text-blue-700 cursor-pointer" onclick="window.triggerEdit('${t.id}')">${escapeHtml(t.title)}</div>`).join('')}
-                    </div>
+        const current = store.calendarDate || new Date();
+        const year = current.getFullYear();
+        const month = current.getMonth();
+        
+        let headerTitle = '';
+        let dateCells = [];
+        let colCount = 7;
+        let dayHeaders = ['日', '一', '二', '三', '四', '五', '六'];
+
+        if (store.calendarView === 'week') {
+            // 周视图逻辑
+            const currDay = current.getDay(); // 0-6
+            const weekStart = new Date(current);
+            weekStart.setDate(current.getDate() - currDay);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            
+            headerTitle = `${weekStart.getFullYear()}年${weekStart.getMonth()+1}月${weekStart.getDate()}日 - ${weekEnd.getMonth()+1}月${weekEnd.getDate()}日`;
+            
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(weekStart);
+                d.setDate(weekStart.getDate() + i);
+                dateCells.push({ date: d, isCurrentMonth: true }); // 周视图都是“当前”显示的
+            }
+        } else {
+            // 月视图逻辑
+            headerTitle = `${year}年 ${month + 1}月`;
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startDayOfWeek = firstDay.getDay();
+
+            // 补全前面的空白
+            for (let i = 0; i < startDayOfWeek; i++) {
+                dateCells.push({ date: null });
+            }
+            // 当月日期
+            for (let d = 1; d <= daysInMonth; d++) {
+                dateCells.push({ date: new Date(year, month, d), isCurrentMonth: true });
+            }
+        }
+
+        const renderTaskItem = (t) => {
+            const isFrog = t.isFrog;
+            // 样式逻辑：青蛙优先，其次是重要且紧急
+            // 青蛙: bg-green-100 text-green-800 border-green-200
+            // 紧急: bg-red-100 text-red-800 border-red-200
+            let bgClass = isFrog 
+                ? 'bg-green-100 text-green-800 border-green-200' 
+                : 'bg-red-100 text-red-800 border-red-200';
+            
+            // 已完成样式叠加
+            if (t.status === 'done') {
+                bgClass += ' opacity-50 line-through grayscale';
+            }
+
+            const icon = isFrog ? '🐸' : '🔥';
+
+            return `
+                <div class="text-[10px] px-1.5 py-0.5 rounded border mb-1 cursor-pointer truncate ${bgClass} hover:opacity-80 transition"
+                     onclick="event.stopPropagation(); window.triggerEdit('${t.id}')"
+                     title="${escapeHtml(t.title)}">
+                    <span class="mr-0.5">${icon}</span>${escapeHtml(t.title)}
                 </div>
             `;
-        }
-        html += `</div></div>`;
-        return html;
+        };
+
+        return `
+            <div class="h-full flex flex-col bg-white rounded-lg shadow overflow-hidden">
+                <!-- 头部控制栏 -->
+                <div class="p-3 border-b flex justify-between items-center bg-gray-50">
+                    <div class="flex items-center gap-2">
+                         <div class="flex bg-white rounded border overflow-hidden p-0.5 text-xs">
+                            <button onclick="window.setCalendarView('month')" class="px-2 py-1 rounded ${store.calendarView==='month' ? 'bg-blue-100 text-blue-600 font-bold' : 'hover:bg-gray-100'}">月</button>
+                            <button onclick="window.setCalendarView('week')" class="px-2 py-1 rounded ${store.calendarView==='week' ? 'bg-blue-100 text-blue-600 font-bold' : 'hover:bg-gray-100'}">周</button>
+                        </div>
+                        <div class="font-bold text-gray-700 text-sm ml-2">${headerTitle}</div>
+                    </div>
+                    <div class="flex items-center gap-1 text-xs">
+                        <button onclick="window.moveCalendar(-1)" class="p-1 hover:bg-white rounded border"><i class="ri-arrow-left-s-line"></i></button>
+                        <button onclick="window.resetCalendar()" class="px-2 py-1 hover:bg-white rounded border">今天</button>
+                        <button onclick="window.moveCalendar(1)" class="p-1 hover:bg-white rounded border"><i class="ri-arrow-right-s-line"></i></button>
+                    </div>
+                </div>
+
+                <!-- 星期表头 -->
+                <div class="grid grid-cols-7 border-b bg-gray-50">
+                    ${dayHeaders.map(h => `<div class="text-center text-xs text-gray-500 py-1 font-medium">${h}</div>`).join('')}
+                </div>
+
+                <!-- 日历网格 -->
+                <div class="flex-1 overflow-y-auto bg-gray-100 p-1">
+                    <div class="grid grid-cols-7 gap-1 min-h-full auto-rows-fr">
+                        ${dateCells.map(cell => {
+                            if (!cell.date) return `<div class="bg-transparent"></div>`;
+                            
+                            const dStr = `${cell.date.getFullYear()}-${String(cell.date.getMonth() + 1).padStart(2, '0')}-${String(cell.date.getDate()).padStart(2, '0')}`;
+                            const isToday = new Date().toDateString() === cell.date.toDateString();
+                            
+                            const dayTasks = filteredTasks.filter(t => t.dueDate && t.dueDate.startsWith(dStr));
+                            
+                            return `
+                                <div class="bg-white rounded shadow-sm p-1 flex flex-col min-h-[100px] ${isToday ? 'ring-2 ring-blue-400 ring-inset' : ''}">
+                                    <div class="text-xs text-gray-400 mb-1 flex justify-between">
+                                        <span class="${isToday ? 'text-blue-600 font-bold' : ''}">${cell.date.getDate()}</span>
+                                        <span class="text-[10px] bg-gray-100 px-1 rounded text-gray-400">${dayTasks.length}</span>
+                                    </div>
+                                    <div class="space-y-0.5 overflow-y-auto flex-1 custom-scrollbar">
+                                        ${dayTasks.map(renderTaskItem).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
     },
 
     _getBorderClass(priority) {
