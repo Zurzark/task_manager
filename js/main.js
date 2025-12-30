@@ -75,6 +75,10 @@ function initUI() {
         }
     });
 
+    // 恢复丢失的监听器
+    document.getElementById('btn-settings')?.addEventListener('click', openSettingsModal);
+    document.getElementById('btn-logs')?.addEventListener('click', openLogsModal);
+
     // 渲染分类列表
     renderCategoryList();
 }
@@ -572,36 +576,636 @@ document.addEventListener('click', () => {
     if (el && !el.classList.contains('hidden')) el.classList.add('hidden');
 });
 
-// ============ 记忆相关 ============
+// ============ 设置弹窗 ============
+let editingApiId = null;
+let settingsTab = 'api';
 
-window.openMemoryModal = () => {
-    const memories = memoryStore.memories; // 简化展示
+function openSettingsModal() {
+    editingApiId = null;
+    settingsTab = 'api';
+    renderSettingsModalContent();
+}
+
+function renderSettingsModalContent() {
+    const isEditing = !!editingApiId;
+    let editData = { name: '', url: '', key: '', model: '', temperature: 0.3, costInput: 5.0, costOutput: 15.0 };
+    
+    if (isEditing) {
+        const api = store.config.apis.find(a => a.id === editingApiId);
+        if (api) editData = { ...api };
+    }
+
     const modalHtml = `
-        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in">
-             <div class="bg-white rounded-xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col">
-                <h3 class="text-lg font-bold mb-4">我的记忆 (${memories.length})</h3>
-                <div class="flex-1 overflow-y-auto space-y-2">
-                    ${memories.map(m => `
-                        <div class="border p-2 rounded">
-                            <div class="font-medium">${escapeHtml(m.content)}</div>
-                            <div class="text-xs text-gray-500 mt-1">分类: ${m.category} | 重要性: ${m.importance}</div>
-                            <button onclick="window.deleteMemory('${m.id}')" class="text-xs text-red-500 mt-1">删除</button>
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in" onclick="if(event.target === this) document.getElementById('modal-container').innerHTML=''">
+            <div class="bg-white rounded-xl w-full max-w-3xl p-6 max-h-[90vh] overflow-auto flex flex-col">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 class="text-lg font-bold">设置</h3>
+                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="text-gray-400"><i class="ri-close-line text-xl"></i></button>
+                </div>
+                
+                <div class="flex gap-4 mb-4 border-b">
+                    <button onclick="window.switchSettingsTab('api')" class="pb-2 px-1 ${settingsTab === 'api' ? 'border-b-2 border-blue-500 text-blue-600 font-bold' : 'text-gray-500'}">API 配置</button>
+                    <button onclick="window.switchSettingsTab('prompt')" class="pb-2 px-1 ${settingsTab === 'prompt' ? 'border-b-2 border-blue-500 text-blue-600 font-bold' : 'text-gray-500'}">Prompt 设置</button>
+                </div>
+
+                <div class="${settingsTab === 'api' ? '' : 'hidden'} grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="border-r pr-4">
+                        <div class="space-y-2 max-h-96 overflow-y-auto">
+                            ${store.config.apis.map(api => `
+                                <div class="p-3 border rounded-lg hover:bg-gray-50 transition group ${store.config.activeApiId === api.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}">
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex items-center gap-2 cursor-pointer" onclick="window.setActiveApi('${api.id}')">
+                                            <div class="w-4 h-4 rounded-full border flex items-center justify-center ${store.config.activeApiId === api.id ? 'border-blue-500' : 'border-gray-300'}">
+                                                ${store.config.activeApiId === api.id ? '<div class="w-2 h-2 bg-blue-500 rounded-full"></div>' : ''}
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-sm text-gray-800">${escapeHtml(api.name)}</div>
+                                                <div class="text-xs text-gray-500">${escapeHtml(api.model)} (Temp: ${api.temperature})</div>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                            <button onclick="window.editApi('${api.id}')" class="text-blue-500 hover:bg-blue-100 p-1 rounded"><i class="ri-edit-line"></i></button>
+                                            <button onclick="window.deleteApi('${api.id}')" class="text-red-500 hover:bg-red-100 p-1 rounded"><i class="ri-delete-bin-line"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
-                    `).join('')}
+                        <button onclick="window.resetEditForm()" class="mt-4 w-full py-2 border border-dashed border-gray-300 rounded text-gray-500 hover:border-blue-500 hover:text-blue-500 transition text-sm">+ 添加新 API</button>
+                    </div>
+
+                    <div>
+                        <h4 class="font-medium mb-3 text-sm text-gray-500 uppercase">${isEditing ? '编辑 API' : '添加新 API'}</h4>
+                        <div class="space-y-3">
+                            <input type="text" id="form-name" value="${escapeHtml(editData.name)}" placeholder="名称 (如: GPT-4)" class="w-full border rounded p-2 text-sm">
+                            <input type="text" id="form-url" value="${escapeHtml(editData.url)}" placeholder="API URL" class="w-full border rounded p-2 text-sm">
+                            <input type="password" id="form-key" value="${escapeHtml(editData.key)}" placeholder="API Key" class="w-full border rounded p-2 text-sm">
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="text" id="form-model" value="${escapeHtml(editData.model)}" placeholder="Model" class="w-full border rounded p-2 text-sm">
+                                <div class="flex items-center border rounded px-2">
+                                    <span class="text-xs text-gray-500 mr-2">温度:</span>
+                                    <input type="number" id="form-temp" value="${editData.temperature}" step="0.1" min="0" max="2" class="w-full text-sm outline-none">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="form-cost-input" value="${editData.costInput}" placeholder="输入价格" class="w-full border rounded p-2 text-sm">
+                                <input type="number" id="form-cost-output" value="${editData.costOutput}" placeholder="输出价格" class="w-full border rounded p-2 text-sm">
+                            </div>
+                            <div class="pt-2 flex justify-end gap-2">
+                                ${isEditing ? `<button onclick="window.resetEditForm()" class="px-3 py-1 text-sm text-gray-600">取消</button>` : ''}
+                                <button onclick="window.saveApiForm()" class="px-3 py-1 text-sm bg-blue-500 text-white rounded">保存</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="pt-4 border-t flex justify-end">
-                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="px-4 py-2 bg-gray-100 rounded">关闭</button>
+
+                <div class="${settingsTab === 'prompt' ? '' : 'hidden'}">
+                    <p class="text-sm text-gray-500 mb-2">自定义 AI 解析任务的系统提示词。请保留 JSON 格式要求。</p>
+                    <textarea id="settings-prompt" rows="12" class="w-full border rounded p-3 text-sm font-mono bg-gray-50">${store.config.prompt}</textarea>
+                    <div class="mt-4 flex justify-end">
+                        <button onclick="window.savePrompt()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存 Prompt</button>
+                    </div>
                 </div>
-             </div>
+            </div>
         </div>
     `;
     document.getElementById('modal-container').innerHTML = modalHtml;
+}
+
+window.switchSettingsTab = (tab) => {
+    settingsTab = tab;
+    renderSettingsModalContent();
 };
 
+window.savePrompt = () => {
+    const newPrompt = document.getElementById('settings-prompt').value;
+    store.config.prompt = newPrompt;
+    store.saveConfig();
+    alert('Prompt 已保存');
+};
+
+window.setActiveApi = (id) => { store.config.activeApiId = id; store.saveConfig(); renderSettingsModalContent(); };
+window.editApi = (id) => { editingApiId = id; renderSettingsModalContent(); };
+window.resetEditForm = () => { editingApiId = null; renderSettingsModalContent(); };
+window.deleteApi = (id) => {
+    if (store.config.apis.length <= 1) return alert('至少保留一个配置');
+    store.config.apis = store.config.apis.filter(a => a.id !== id);
+    if (store.config.activeApiId === id) store.config.activeApiId = store.config.apis[0].id;
+    store.saveConfig();
+    if (editingApiId === id) editingApiId = null;
+    renderSettingsModalContent();
+};
+window.saveApiForm = () => {
+    const name = document.getElementById('form-name').value;
+    const url = document.getElementById('form-url').value;
+    const key = document.getElementById('form-key').value;
+    const model = document.getElementById('form-model').value;
+    const temp = parseFloat(document.getElementById('form-temp').value) || 0.3;
+    const costInput = parseFloat(document.getElementById('form-cost-input').value) || 0;
+    const costOutput = parseFloat(document.getElementById('form-cost-output').value) || 0;
+
+    if (!name || !url || !key) return alert('请填写必要信息');
+
+    const data = { name, url, key, model, temperature: temp, costInput, costOutput };
+    
+    if (editingApiId) {
+        const idx = store.config.apis.findIndex(a => a.id === editingApiId);
+        if (idx !== -1) store.config.apis[idx] = { ...store.config.apis[idx], ...data };
+    } else {
+        const newId = generateId();
+        store.config.apis.push({ id: newId, ...data });
+        store.config.activeApiId = newId;
+    }
+    store.saveConfig();
+    editingApiId = null;
+    renderSettingsModalContent();
+};
+
+function openLogsModal() {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in">
+            <div class="bg-white rounded-xl w-full max-w-4xl p-6 max-h-[90vh] overflow-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">API 调用记录</h3>
+                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="text-gray-400"><i class="ri-close-line text-xl"></i></button>
+                </div>
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-50 text-gray-600"><tr><th class="p-2">时间</th><th class="p-2">模型</th><th class="p-2">Tokens</th><th class="p-2">费用</th><th class="p-2">耗时</th></tr></thead>
+                    <tbody class="divide-y">${store.apiLogs.map(log => `<tr><td class="p-2 text-gray-500">${new Date(log.timestamp).toLocaleString()}</td><td class="p-2">${escapeHtml(log.model)}</td><td class="p-2">${log.tokens.total_tokens}</td><td class="p-2 font-bold text-orange-500">¥${log.cost.toFixed(4)}</td><td class="p-2 text-gray-400">${log.duration}ms</td></tr>`).join('')}</tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    document.getElementById('modal-container').innerHTML = modalHtml;
+}
+
+// ============ 记忆相关 ============
+
+window.openMemoryModal = () => {
+    const stats = memoryStore.getStats();
+    const profile = memoryStore.userProfile;
+    const memories = memoryStore.memories;
+    
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in" onclick="if(event.target === this) document.getElementById('modal-container').innerHTML=''">
+            <div class="bg-white rounded-xl w-full max-w-4xl p-6 max-h-[90vh] overflow-auto flex flex-col">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 class="text-lg font-bold">我的记忆</h3>
+                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="text-gray-400"><i class="ri-close-line text-xl"></i></button>
+                </div>
+                
+                <div class="flex gap-4 mb-4 border-b">
+                    <button onclick="window.switchMemoryTab('profile')" class="pb-2 px-1 border-b-2 border-blue-500 text-blue-600 font-bold">用户画像</button>
+                    <button onclick="window.switchMemoryTab('memories')" class="pb-2 px-1 text-gray-500">记忆碎片</button>
+                    <button onclick="window.switchMemoryTab('config')" class="pb-2 px-1 text-gray-500">配置</button>
+                    <button onclick="window.switchMemoryTab('stats')" class="pb-2 px-1 text-gray-500">统计</button>
+                </div>
+                
+                <!-- 用户画像标签 -->
+                <div id="memory-profile-tab" class="space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium mb-2">职业背景</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">职业</label>
+                                <input type="text" id="memory-profession" value="${profile.profession || ''}" class="w-full border rounded p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">角色</label>
+                                <input type="text" id="memory-role" value="${profile.role || ''}" class="w-full border rounded p-2">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-sm text-gray-600 mb-1">工作职责</label>
+                            <textarea id="memory-responsibilities" rows="3" class="w-full border rounded p-2">${profile.responsibilities || ''}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium mb-2">沟通风格偏好</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">沟通风格</label>
+                                <input type="text" id="memory-communication-style" value="${profile.communicationStyle || ''}" class="w-full border rounded p-2" placeholder="例如：直接、委婉、正式">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">语气偏好</label>
+                                <input type="text" id="memory-tone-preference" value="${profile.tonePreference || ''}" class="w-full border rounded p-2" placeholder="例如：专业、友好、简洁">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium mb-2">工作习惯</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">工作时间</label>
+                                <input type="text" id="memory-work-hours" value="${profile.workHours || ''}" class="w-full border rounded p-2" placeholder="例如：9:00-18:00">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">时区</label>
+                                <input type="text" id="memory-timezone" value="${profile.timezone || ''}" class="w-full border rounded p-2" placeholder="例如：UTC+8">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-2">
+                        <button onclick="window.saveMemoryProfile()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存画像</button>
+                    </div>
+                </div>
+                
+                <!-- 记忆碎片标签 -->
+                <div id="memory-memories-tab" class="hidden space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-medium">记忆碎片 (${stats.enabled}个启用/${stats.total}个总数)</h4>
+                        <div class="flex gap-2">
+                            <button onclick="window.openAddMemoryModal()" class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600 flex items-center gap-1">
+                                <i class="ri-add-line"></i> 添加记忆
+                            </button>
+                            <button onclick="window.organizeMemories()" class="px-3 py-1 bg-purple-500 text-white rounded text-sm hover:bg-purple-600 flex items-center gap-1">
+                                <i class="ri-magic-line"></i> AI整理
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="memory-list" class="space-y-2">
+                        ${memories.map((memory, index) => `
+                            <div class="memory-item border rounded-lg p-3 ${memory.enabled ? 'hover:bg-gray-50' : 'opacity-60 bg-gray-50'} transition" data-id="${memory.id}">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-xs px-2 py-0.5 ${memory.enabled ? 'bg-gray-100 text-gray-600' : 'bg-gray-200 text-gray-500'} rounded">${memory.category}</span>
+                                            <span class="text-xs ${memory.enabled ? 'text-gray-400' : 'text-gray-300'}">${'★'.repeat(memory.importance)}</span>
+                                            ${memory.tags.map(tag => `<span class="text-xs px-2 py-0.5 ${memory.enabled ? 'bg-blue-100 text-blue-600' : 'bg-blue-50 text-blue-400'} rounded">${tag}</span>`).join('')}
+                                            ${!memory.enabled ? '<span class="text-xs px-2 py-0.5 bg-gray-200 text-gray-500 rounded">已禁用</span>' : ''}
+                                        </div>
+                                        <p class="${memory.enabled ? 'text-gray-800' : 'text-gray-500'}">${memory.content}</p>
+                                    </div>
+                                    <div class="flex gap-1 ml-2">
+                                        <button onclick="window.toggleMemory('${memory.id}')" class="text-xs px-2 py-1 rounded ${memory.enabled ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+                                            ${memory.enabled ? '禁用' : '启用'}
+                                        </button>
+                                        <button onclick="window.editMemory('${memory.id}')" class="text-xs px-2 py-1 ${memory.enabled ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'bg-blue-50 text-blue-400 hover:bg-blue-100'} rounded">编辑</button>
+                                        <button onclick="window.deleteMemory('${memory.id}')" class="text-xs px-2 py-1 ${memory.enabled ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-red-50 text-red-400 hover:bg-red-100'} rounded">删除</button>
+                                    </div>
+                                </div>
+                                <div class="text-xs ${memory.enabled ? 'text-gray-400' : 'text-gray-300'} mt-1">
+                                    创建: ${new Date(memory.createdAt).toLocaleDateString()} | 
+                                    使用: ${memory.usageCount || 0}次
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- 配置标签 -->
+                <div id="memory-config-tab" class="hidden space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium mb-3">记忆注入策略</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">注入策略</label>
+                                <select id="memory-injection-strategy" class="w-full border rounded p-2">
+                                    <option value="smart" ${memoryStore.config.injectionStrategy === 'smart' ? 'selected' : ''}>智能注入 (推荐)</option>
+                                    <option value="all" ${memoryStore.config.injectionStrategy === 'all' ? 'selected' : ''}>全部注入</option>
+                                    <option value="important" ${memoryStore.config.injectionStrategy === 'important' ? 'selected' : ''}>仅重要记忆</option>
+                                    <option value="none" ${memoryStore.config.injectionStrategy === 'none' ? 'selected' : ''}>不注入</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">智能注入会根据用户输入内容的相关性自动选择记忆</p>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-600 mb-1">最大记忆条数</label>
+                                    <input type="number" id="memory-max-memories" value="${memoryStore.config.maxMemories}" min="1" max="50" class="w-full border rounded p-2">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-600 mb-1">最大Token数</label>
+                                    <input type="number" id="memory-max-tokens" value="${memoryStore.config.maxTokens}" min="100" max="5000" class="w-full border rounded p-2">
+                                    <p class="text-xs text-gray-500 mt-1">约 ${Math.floor(memoryStore.config.maxTokens / 3)} 字符</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-2">
+                        <button onclick="window.saveMemoryConfig()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存配置</button>
+                    </div>
+                </div>
+                
+                <!-- 统计标签 -->
+                <div id="memory-stats-tab" class="hidden space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium mb-3">记忆统计</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white p-3 rounded border">
+                                <div class="text-2xl font-bold text-blue-600">${stats.total}</div>
+                                <div class="text-sm text-gray-600">总记忆数</div>
+                            </div>
+                            <div class="bg-white p-3 rounded border">
+                                <div class="text-2xl font-bold text-green-600">${stats.enabled}</div>
+                                <div class="text-sm text-gray-600">启用记忆</div>
+                            </div>
+                            <div class="bg-white p-3 rounded border">
+                                <div class="text-2xl font-bold text-purple-600">${stats.totalUsage}</div>
+                                <div class="text-sm text-gray-600">总使用次数</div>
+                            </div>
+                            <div class="bg-white p-3 rounded border">
+                                <div class="text-2xl font-bold text-orange-600">${stats.averageImportance.toFixed(1)}</div>
+                                <div class="text-sm text-gray-600">平均重要性</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium mb-3">分类分布</h4>
+                        <div class="space-y-2">
+                            ${Object.entries(stats.byCategory).map(([category, count]) => `
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm">${category}</span>
+                                    <span class="text-sm font-medium">${count} 条</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('modal-container').innerHTML = modalHtml;
+}
+
+// 切换记忆标签
+window.switchMemoryTab = (tab) => {
+    // 隐藏所有标签
+    ['profile', 'memories', 'config', 'stats'].forEach(t => {
+        const element = document.getElementById(`memory-${t}-tab`);
+        if (element) element.classList.add('hidden');
+    });
+    
+    // 显示目标标签
+    const targetElement = document.getElementById(`memory-${tab}-tab`);
+    if (targetElement) targetElement.classList.remove('hidden');
+    
+    // 更新标签按钮状态
+    const modalContainer = document.getElementById('modal-container');
+    if (modalContainer) {
+        const tabButtons = modalContainer.querySelectorAll('[onclick*="switchMemoryTab"]');
+        tabButtons.forEach(btn => {
+            const btnTab = btn.getAttribute('onclick').match(/switchMemoryTab\('(.+?)'\)/)?.[1];
+            if (btnTab === tab) {
+                btn.classList.add('border-b-2', 'border-blue-500', 'text-blue-600', 'font-bold');
+                btn.classList.remove('text-gray-500');
+            } else {
+                btn.classList.remove('border-b-2', 'border-blue-500', 'text-blue-600', 'font-bold');
+                btn.classList.add('text-gray-500');
+            }
+        });
+    }
+};
+
+// 保存用户画像
+window.saveMemoryProfile = () => {
+    const updates = {
+        profession: document.getElementById('memory-profession').value,
+        role: document.getElementById('memory-role').value,
+        responsibilities: document.getElementById('memory-responsibilities').value,
+        communicationStyle: document.getElementById('memory-communication-style').value,
+        tonePreference: document.getElementById('memory-tone-preference').value,
+        workHours: document.getElementById('memory-work-hours').value,
+        timezone: document.getElementById('memory-timezone').value
+    };
+    
+    memoryStore.updateUserProfile(updates);
+    alert('用户画像已保存');
+};
+
+// 保存记忆配置
+window.saveMemoryConfig = () => {
+    const updates = {
+        injectionStrategy: document.getElementById('memory-injection-strategy').value,
+        maxMemories: parseInt(document.getElementById('memory-max-memories').value) || 10,
+        maxTokens: parseInt(document.getElementById('memory-max-tokens').value) || 1000
+    };
+    
+    memoryStore.updateConfig(updates);
+    alert('记忆配置已保存');
+};
+
+// 打开添加记忆模态框
+window.openAddMemoryModal = () => {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in" onclick="if(event.target === this) document.getElementById('modal-container').innerHTML=''">
+            <div class="bg-white rounded-xl w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">添加记忆</h3>
+                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="text-gray-400"><i class="ri-close-line text-xl"></i></button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">记忆内容</label>
+                        <textarea id="new-memory-content" rows="3" class="w-full border rounded p-2" placeholder="例如：周报需要在周五下午3点前发出"></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">分类</label>
+                            <select id="new-memory-category" class="w-full border rounded p-2">
+                                <option value="work_rule">工作规则</option>
+                                <option value="preference">偏好</option>
+                                <option value="habit">习惯</option>
+                                <option value="knowledge">知识</option>
+                                <option value="person">人物</option>
+                                <option value="term">术语</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">重要性</label>
+                            <select id="new-memory-importance" class="w-full border rounded p-2">
+                                <option value="1">★ 次要</option>
+                                <option value="2">★★ 低</option>
+                                <option value="3" selected>★★★ 中</option>
+                                <option value="4">★★★★ 高</option>
+                                <option value="5">★★★★★ 关键</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">标签 (用逗号分隔)</label>
+                        <input type="text" id="new-memory-tags" class="w-full border rounded p-2" placeholder="例如：周报, 截止时间, 周五">
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-end gap-2">
+                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                    <button onclick="window.saveNewMemory()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('modal-container').innerHTML = modalHtml;
+};
+
+// 保存新记忆
+window.saveNewMemory = () => {
+    const content = document.getElementById('new-memory-content').value.trim();
+    if (!content) {
+        alert('请输入记忆内容');
+        return;
+    }
+    
+    const memoryData = {
+        content,
+        category: document.getElementById('new-memory-category').value,
+        importance: parseInt(document.getElementById('new-memory-importance').value),
+        tags: document.getElementById('new-memory-tags').value.split(',').map(t => t.trim()).filter(Boolean)
+    };
+    
+    memoryStore.addMemory(memoryData);
+    document.getElementById('modal-container').innerHTML = '';
+    openMemoryModal(); // 重新打开记忆模态框以刷新列表
+};
+
+// 切换记忆启用状态
+window.toggleMemory = (id) => {
+    memoryStore.toggleMemory(id);
+    openMemoryModal(); // 刷新界面
+};
+
+// 编辑记忆
+window.editMemory = (id) => {
+    const memory = memoryStore.memories.find(m => m.id === id);
+    if (!memory) return;
+    
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 fade-in" onclick="if(event.target === this) document.getElementById('modal-container').innerHTML=''">
+            <div class="bg-white rounded-xl w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold">编辑记忆</h3>
+                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="text-gray-400"><i class="ri-close-line text-xl"></i></button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">记忆内容</label>
+                        <textarea id="edit-memory-content" rows="3" class="w-full border rounded p-2">${memory.content}</textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">分类</label>
+                            <select id="edit-memory-category" class="w-full border rounded p-2">
+                                <option value="work_rule" ${memory.category === 'work_rule' ? 'selected' : ''}>工作规则</option>
+                                <option value="preference" ${memory.category === 'preference' ? 'selected' : ''}>偏好</option>
+                                <option value="habit" ${memory.category === 'habit' ? 'selected' : ''}>习惯</option>
+                                <option value="knowledge" ${memory.category === 'knowledge' ? 'selected' : ''}>知识</option>
+                                <option value="person" ${memory.category === 'person' ? 'selected' : ''}>人物</option>
+                                <option value="term" ${memory.category === 'term' ? 'selected' : ''}>术语</option>
+                                <option value="other" ${memory.category === 'other' ? 'selected' : ''}>其他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">重要性</label>
+                            <select id="edit-memory-importance" class="w-full border rounded p-2">
+                                <option value="1" ${memory.importance === 1 ? 'selected' : ''}>★ 次要</option>
+                                <option value="2" ${memory.importance === 2 ? 'selected' : ''}>★★ 低</option>
+                                <option value="3" ${memory.importance === 3 ? 'selected' : ''}>★★★ 中</option>
+                                <option value="4" ${memory.importance === 4 ? 'selected' : ''}>★★★★ 高</option>
+                                <option value="5" ${memory.importance === 5 ? 'selected' : ''}>★★★★★ 关键</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">标签 (用逗号分隔)</label>
+                        <input type="text" id="edit-memory-tags" class="w-full border rounded p-2" value="${memory.tags.join(', ')}">
+                    </div>
+                    
+                    <div>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="edit-memory-enabled" ${memory.enabled ? 'checked' : ''}>
+                            <span class="text-sm text-gray-600">启用此记忆</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-end gap-2">
+                    <button onclick="document.getElementById('modal-container').innerHTML=''" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                    <button onclick="window.saveEditedMemory('${id}')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('modal-container').innerHTML = modalHtml;
+};
+
+// 保存编辑的记忆
+window.saveEditedMemory = (id) => {
+    const content = document.getElementById('edit-memory-content').value.trim();
+    if (!content) {
+        alert('请输入记忆内容');
+        return;
+    }
+    
+    const updates = {
+        content,
+        category: document.getElementById('edit-memory-category').value,
+        importance: parseInt(document.getElementById('edit-memory-importance').value),
+        tags: document.getElementById('edit-memory-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+        enabled: document.getElementById('edit-memory-enabled').checked
+    };
+    
+    memoryStore.updateMemory(id, updates);
+    document.getElementById('modal-container').innerHTML = '';
+    openMemoryModal(); // 重新打开记忆模态框以刷新列表
+};
+
+// 删除记忆
 window.deleteMemory = (id) => {
-    if(confirm('删除?')) {
+    if (confirm('确定删除这条记忆吗？')) {
         memoryStore.deleteMemory(id);
-        openMemoryModal();
+        openMemoryModal(); // 刷新界面
+    }
+};
+
+// AI整理记忆
+window.organizeMemories = async () => {
+    try {
+        const prompt = memoryStore.generateOrganizationPrompt();
+        const result = await callAI(prompt, 'organize_memories');
+        
+        // 尝试解析JSON
+        let jsonResult;
+        try {
+            // 提取JSON部分
+            const jsonMatch = result.match(/```json\n([\s\S]*?)\n```/) || result.match(/{[\s\S]*}/);
+            if (jsonMatch) {
+                jsonResult = JSON.parse(jsonMatch[0].includes('```') ? jsonMatch[1] : jsonMatch[0]);
+            } else {
+                jsonResult = JSON.parse(result);
+            }
+        } catch (e) {
+            // 如果解析失败，显示原始结果
+            alert('AI整理完成，但返回格式有误。请手动检查结果。\n\n' + result.substring(0, 500) + '...');
+            return;
+        }
+        
+        const applyResult = memoryStore.applyOrganizationResult(jsonResult);
+        if (applyResult.success) {
+            alert(`记忆整理完成！\n\n总结：${applyResult.summary}\n\n建议：${applyResult.suggestions.join('; ')}`);
+            openMemoryModal(); // 刷新界面
+        } else {
+            alert('应用整理结果失败：' + applyResult.error);
+        }
+    } catch (error) {
+        console.error('AI整理失败:', error);
+        alert('AI整理失败：' + error.message);
     }
 };
 
