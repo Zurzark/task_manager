@@ -227,7 +227,7 @@ function getActionTypeConfig(type) {
 }
 
 // 格式化日期：更智能的显示
-function formatSmartDate(dateStr, isDueDate = false) {
+function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
     if (!dateStr) return '<span class="text-gray-300">-</span>';
     const date = new Date(dateStr);
     const now = new Date();
@@ -242,14 +242,20 @@ function formatSmartDate(dateStr, isDueDate = false) {
     const isThisWeek = date >= in3Days && date < in7Days;
     
     let colorClass = 'text-gray-600';
-    let icon = '';
+    let icon = ''; // Default icon or emoji
     
     if (isDueDate) {
-        if (isPast && !isToday) { colorClass = 'text-red-600 font-bold'; icon = 'ri-alarm-warning-fill'; } // 过期
-        else if (isToday) { colorClass = 'text-orange-600 font-bold'; icon = 'ri-fire-fill'; } // 今天
-        else if (isSoon) { colorClass = 'text-yellow-600 font-medium'; icon = 'ri-timer-flash-line'; } // 3天内
-        else if (isThisWeek) { colorClass = 'text-blue-600'; icon = 'ri-calendar-event-line'; } // 7天内
-        else { colorClass = 'text-gray-500'; icon = 'ri-calendar-line'; } // 远期
+        if (isDone) {
+            // 已完成任务不显示特殊样式
+            colorClass = 'text-gray-400 line-through';
+            icon = '';
+        } else {
+            if (isPast && !isToday) { colorClass = 'text-red-600 font-bold'; icon = '⚠️'; } // 过期
+            else if (isToday) { colorClass = 'text-orange-600 font-bold'; icon = '🔥'; } // 今天
+            else if (isSoon) { colorClass = 'text-yellow-600 font-medium'; icon = '⚡'; } // 3天内
+            else if (isThisWeek) { colorClass = 'text-blue-600'; icon = '📅'; } // 7天内
+            else { colorClass = 'text-gray-500'; icon = ''; } // 远期
+        }
     } else {
         // 创建时间等
         colorClass = 'text-gray-400';
@@ -259,8 +265,8 @@ function formatSmartDate(dateStr, isDueDate = false) {
     const d = date.getDate().toString().padStart(2, '0');
     const time = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
     
-    return `<div class="flex items-center gap-1 ${colorClass} text-xs">
-        ${icon ? `<i class="${icon}"></i>` : ''}
+    return `<div class="flex items-center gap-1 ${colorClass} text-xs justify-center">
+        ${icon ? `<span class="text-sm">${icon}</span>` : ''}
         <span>${m}/${d} ${time}</span>
     </div>`;
 }
@@ -282,7 +288,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
         // 状态背景色逻辑
         let rowBgClass = '';
         if (isSelected) rowBgClass = 'bg-blue-50';
-        else if (task.status === 'done') rowBgClass = 'bg-gray-50 opacity-75'; // 已完成：浅灰 + 降低透明度
+        else if (task.status === 'done') rowBgClass = 'bg-gray-100/80 grayscale'; // 已完成：更深的灰，去色
         else if (task.status === 'cancelled') rowBgClass = 'bg-gray-100 opacity-60 line-through-gray'; // 已取消
         else if (isFrog) rowBgClass = 'bg-red-50/30'; // 青蛙：淡红 (优先级低于选中，但高于普通)
         
@@ -323,7 +329,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
 
                 <!-- 3. 优先级 (Badge) -->
                 <td class="w-24 text-center">
-                     <div class="relative group/priority flex justify-center">
+                     <div class="relative group/priority flex justify-center z-20">
                         <span onclick="event.stopPropagation()" 
                              class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${pBadgeConfig.class}">
                              ${pBadgeConfig.label}
@@ -373,7 +379,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
 
                 <!-- 4. 行动项 (新位置) -->
                 <td class="w-20 text-center">
-                    <div class="relative group/action flex justify-center">
+                    <div class="relative group/action flex justify-center z-20">
                         <span onclick="event.stopPropagation()" 
                             class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
                             ${aConfig.label}
@@ -394,7 +400,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
 
                 <!-- 6. 截止时间 (含开始时间) -->
                 <td class="w-32 whitespace-nowrap editable-cell text-center" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'dueDate', event)">
-                     ${formatSmartDate(task.dueDate, true)}
+                     ${formatSmartDate(task.dueDate, true, isDone)}
                 </td>
 
                 <!-- 7. 状态 -->
@@ -435,20 +441,19 @@ export const render = {
         
         // 分页逻辑
         const { page, pageSize } = store.pagination.list;
-        const totalItems = tasks.length;
+        // 修正：对于列表视图，分页应该基于顶层任务（树根），否则会打断父子关系
+        // 1. 先构建完整的树
+        const fullTreeRoots = buildTaskTree(tasks);
+        
+        // 2. 基于树根进行分页
+        const totalItems = fullTreeRoots.length; // 修正：总数应该是根节点的数量，还是所有任务的数量？通常列表分页是基于行数。如果展开了子任务，行数会变。
+        // 这里简化逻辑：分页基于“根任务数量”。
+        
         const totalPages = Math.ceil(totalItems / pageSize) || 1;
         const currentPage = Math.min(page, totalPages);
         
         const startIdx = (currentPage - 1) * pageSize;
         const endIdx = startIdx + pageSize;
-        const pagedTasks = tasks.slice(startIdx, endIdx);
-        
-        const treeRoots = buildTaskTree(pagedTasks); // 注意：分页是在树构建之前还是之后？通常分页是平铺的。
-        // 如果要保持树形结构，分页会很复杂（可能切断父子）。
-        // 这里假设列表视图主要展示顶层或者平铺。
-        // 如果是树形表格，通常分页是针对"根节点"。
-        // 修正：先构建树，再对根节点分页
-        const fullTreeRoots = buildTaskTree(tasks);
         const pagedTreeRoots = fullTreeRoots.slice(startIdx, endIdx);
         
         return `
