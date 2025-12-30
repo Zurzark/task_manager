@@ -80,7 +80,7 @@ export const store = {
     calendarDate: new Date(),
     currentViewMode: 'list',
     selectedTaskIds: new Set(),
-    sortState: [{ field: 'priority', direction: 'desc' }],
+    sortState: [],
     statusFilter: [], // 改为数组，支持多选. 空数组表示全部
     
     // 分页状态
@@ -110,7 +110,7 @@ export const store = {
         this.loadConfig();
         this.loadData();
         if (!Array.isArray(this.sortState)) {
-            this.sortState = [{ field: 'priority', direction: 'desc' }];
+            this.sortState = [];
         }
     },
 
@@ -300,24 +300,64 @@ export const store = {
         this.saveData();
     },
 
-    importData(jsonData) {
+    // 导入数据 (支持 JSON 字符串或对象)
+    importData(input) {
         try {
-            const data = JSON.parse(jsonData);
+            const data = typeof input === 'string' ? JSON.parse(input) : input;
+            
+            // 兼容旧版：纯数组认为是任务列表
             if (Array.isArray(data)) {
-                let count = 0;
-                data.forEach(newTask => {
-                    if (!this.tasks.find(t => t.id === newTask.id)) {
-                        this.tasks.push(newTask);
-                        count++;
-                    }
-                });
-                this.saveData();
-                return true;
+                return this.importTasksFromData(data);
             }
+            
+            return false;
         } catch (e) {
             console.error('Import failed:', e);
             return false;
         }
-        return false;
+    },
+
+    // 核心导入逻辑：导入任务数组
+    importTasksFromData(tasksArray) {
+        if (!Array.isArray(tasksArray)) return false;
+        
+        let count = 0;
+        tasksArray.forEach(newTask => {
+            if (!this.tasks.find(t => t.id === newTask.id)) {
+                this.tasks.push(newTask);
+                count++;
+            }
+        });
+        
+        if (count > 0) {
+            // 重新计算 nextShortId 以防冲突
+            this._recalcNextShortId();
+            this.saveData();
+            return true;
+        }
+        return true; // 虽然没有新任务，但操作是成功的
+    },
+
+    // 导入配置
+    importConfigFromData(configData) {
+        if (!configData) return false;
+        
+        // 保护性合并：保留当前的某些状态可能更好，但作为备份恢复，应该覆盖
+        // 特殊处理 apis: 避免丢失当前 key，但如果是完整恢复，应该信任备份
+        // 这里选择合并策略：
+        // 1. Prompt, ActiveId 直接覆盖
+        // 2. APIs: 既然是备份，假设用户想恢复到备份的状态，所以直接覆盖 apis 列表是合理的
+        //    但也可能用户只想导入 prompt。
+        //    根据需求 "支持导出...设置（大模型api、prompt等）"，导入时应恢复这些。
+        
+        this.config = {
+            ...this.config,
+            ...configData,
+            // 确保 nextShortId 取最大值，避免 ID 冲突
+            nextShortId: Math.max(this.config.nextShortId, configData.nextShortId || 1)
+        };
+        
+        this.saveConfig();
+        return true;
     }
 };

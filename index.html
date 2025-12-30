@@ -9,10 +9,11 @@
     <link rel="stylesheet" href="css/style.css">
     <style>
         /* 日期选择器全区域可点击 */
-        input[type="date"] {
+        input[type="date"], input[type="datetime-local"] {
             position: relative;
         }
-        input[type="date"]::-webkit-calendar-picker-indicator {
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
             position: absolute;
             top: 0;
             left: 0;

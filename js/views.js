@@ -36,7 +36,11 @@ function getStatusConfig(status) {
 
 function getFilteredTasks() {
     const { tasks, viewFilter, categoryFilter, sortState, statusFilter, frogFilter, actionTypeFilter, dateRangeFilter } = store;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+    
+    // 统一使用东八区时间投影进行比较
+    const now = new Date();
+    const shanghaiNowStr = now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' });
+    const today = new Date(shanghaiNowStr); today.setHours(0, 0, 0, 0);
     const in7Days = new Date(today); in7Days.setDate(today.getDate() + 7);
 
     let filtered = [...tasks];
@@ -53,7 +57,8 @@ function getFilteredTasks() {
             let isComingSoon = false;
             if (t.dueDate) {
                 const d = new Date(t.dueDate);
-                isComingSoon = d >= today && d <= in7Days; // today is 00:00, in7Days is +7 days
+                const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                isComingSoon = sd >= today && sd <= in7Days;
             }
             
             return isFrog || isUrgent || isComingSoon;
@@ -86,25 +91,31 @@ function getFilteredTasks() {
         filtered = filtered.filter(t => t.actionType === actionTypeFilter);
     }
 
-    // 6. 新增：日期范围筛选 (基于截止时间)
+    // 6. 新增：日期范围筛选 (基于截止时间 - 东八区)
     if (dateRangeFilter && dateRangeFilter.start && dateRangeFilter.end) {
-        const start = new Date(dateRangeFilter.start); start.setHours(0,0,0,0);
-        const end = new Date(dateRangeFilter.end); end.setHours(23,59,59,999);
         filtered = filtered.filter(t => {
             if (!t.dueDate) return false;
             const d = new Date(t.dueDate);
-            return d >= start && d <= end;
+            const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+            const y = sd.getFullYear();
+            const m = String(sd.getMonth()+1).padStart(2,'0');
+            const day = String(sd.getDate()).padStart(2,'0');
+            const dStr = `${y}-${m}-${day}`;
+            return dStr >= dateRangeFilter.start && dStr <= dateRangeFilter.end;
         });
     }
 
-    // 7. 新增：创建时间筛选
+    // 7. 新增：创建时间筛选 (基于东八区)
     if (store.createdAtRangeFilter && store.createdAtRangeFilter.start && store.createdAtRangeFilter.end) {
-        const start = new Date(store.createdAtRangeFilter.start); start.setHours(0,0,0,0);
-        const end = new Date(store.createdAtRangeFilter.end); end.setHours(23,59,59,999);
         filtered = filtered.filter(t => {
             if (!t.createdAt) return false;
             const d = new Date(t.createdAt);
-            return d >= start && d <= end;
+            const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+            const y = sd.getFullYear();
+            const m = String(sd.getMonth()+1).padStart(2,'0');
+            const day = String(sd.getDate()).padStart(2,'0');
+            const dStr = `${y}-${m}-${day}`;
+            return dStr >= store.createdAtRangeFilter.start && dStr <= store.createdAtRangeFilter.end;
         });
     }
     
@@ -140,13 +151,23 @@ function getFilteredTasks() {
         // Fallback default sort
          const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
          filtered.sort((a, b) => {
-             // First by Frog
+             // 1. First by Frog (Yes > No)
              if (a.isFrog !== b.isFrog) return a.isFrog ? -1 : 1;
              
+             // 2. Then by Priority (Urgent > High > Medium > Low)
              const wa = priorityWeight[a.priority] || 2;
              const wb = priorityWeight[b.priority] || 2;
              if (wa !== wb) return wb - wa; 
-             return 0;
+
+             // 3. Then by Due Date (Ascending, earlier first)
+             const timeA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+             const timeB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+             
+             if (timeA === 0 && timeB === 0) return 0;
+             if (timeA === 0) return 1; // No date -> Bottom
+             if (timeB === 0) return -1; // No date -> Bottom
+             
+             return timeA - timeB;
          });
     }
     
@@ -656,8 +677,8 @@ export const render = {
 
     calendar() {
         const tasks = getFilteredTasks();
-        // 筛选逻辑：只展示青蛙任务 或 重要且紧急任务
-        const filteredTasks = tasks.filter(t => t.isFrog || t.priority === 'urgent');
+        // 筛选逻辑：展示除“不重要不紧急”外的所有任务 (保留青蛙任务)
+        const filteredTasks = tasks.filter(t => t.isFrog || t.priority !== 'low');
 
         const current = store.calendarDate || new Date();
         const year = current.getFullYear();
@@ -703,19 +724,40 @@ export const render = {
 
         const renderTaskItem = (t) => {
             const isFrog = t.isFrog;
-            // 样式逻辑：青蛙优先，其次是重要且紧急
-            // 青蛙: bg-green-100 text-green-800 border-green-200
-            // 紧急: bg-red-100 text-red-800 border-red-200
-            let bgClass = isFrog 
-                ? 'bg-green-100 text-green-800 border-green-200' 
-                : 'bg-red-100 text-red-800 border-red-200';
+            let bgClass = '';
+            let icon = '';
+
+            if (isFrog) {
+                bgClass = 'bg-green-100 text-green-800 border-green-200';
+                icon = '🐸';
+            } else {
+                switch (t.priority) {
+                    case 'urgent': // 重要且紧急
+                        bgClass = 'bg-red-100 text-red-800 border-red-200';
+                        icon = '🔥';
+                        break;
+                    case 'high': // 重要不紧急
+                        bgClass = 'bg-orange-100 text-orange-800 border-orange-200';
+                        icon = '🌱';
+                        break;
+                    case 'medium': // 不重要紧急
+                        bgClass = 'bg-blue-100 text-blue-800 border-blue-200';
+                        icon = '🏃';
+                        break;
+                    case 'low': // 不重要不紧急
+                        bgClass = 'bg-gray-100 text-gray-800 border-gray-200';
+                        icon = '🍵';
+                        break;
+                    default:
+                        bgClass = 'bg-gray-100 text-gray-800 border-gray-200';
+                        icon = '📝';
+                }
+            }
             
             // 已完成样式叠加
             if (t.status === 'done') {
                 bgClass += ' opacity-50 line-through grayscale';
             }
-
-            const icon = isFrog ? '🐸' : '🔥';
 
             return `
                 <div class="text-[10px] px-1.5 py-0.5 rounded border mb-1 cursor-pointer truncate ${bgClass} hover:opacity-80 transition"
@@ -758,7 +800,15 @@ export const render = {
                             const dStr = `${cell.date.getFullYear()}-${String(cell.date.getMonth() + 1).padStart(2, '0')}-${String(cell.date.getDate()).padStart(2, '0')}`;
                             const isToday = new Date().toDateString() === cell.date.toDateString();
                             
-                            const dayTasks = filteredTasks.filter(t => t.dueDate && t.dueDate.startsWith(dStr));
+                            // 修正：使用东八区时间进行匹配
+                            const dayTasks = filteredTasks.filter(t => {
+                                if (!t.dueDate) return false;
+                                const d = new Date(t.dueDate);
+                                // 转换为东八区时间对象
+                                const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                                const tStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, '0')}-${String(sd.getDate()).padStart(2, '0')}`;
+                                return tStr === dStr;
+                            });
                             
                             return `
                                 <div class="bg-white rounded shadow-sm p-1 flex flex-col min-h-[100px] ${isToday ? 'ring-2 ring-blue-400 ring-inset' : ''}">
