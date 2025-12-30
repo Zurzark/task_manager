@@ -1,0 +1,243 @@
+/* css/style.css */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.fade-in { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ============ 优先级视觉重构 (更显眼) ============ */
+.task-card {
+    transition: all 0.2s ease;
+    border-left-width: 6px; /* 加宽左边框 */
+    position: relative;
+    overflow: hidden;
+}
+.task-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+
+/* 紧急: 红色背景微调 + 红色边框 */
+.priority-urgent { border-left-color: #ef4444; background: linear-gradient(to right, #fef2f2, #fff); }
+.priority-urgent .priority-icon { color: #ef4444; background: #fee2e2; }
+
+/* 高: 橙色背景微调 + 橙色边框 */
+.priority-high { border-left-color: #f97316; background: linear-gradient(to right, #fff7ed, #fff); }
+.priority-high .priority-icon { color: #f97316; background: #ffedd5; }
+
+/* 中: 黄色边框 */
+.priority-medium { border-left-color: #eab308; background: #fff; }
+.priority-medium .priority-icon { color: #ca8a04; background: #fef9c3; }
+
+/* 低: 绿色边框 */
+.priority-low { border-left-color: #22c55e; background: #fff; }
+.priority-low .priority-icon { color: #16a34a; background: #dcfce7; }
+
+/* ============ 树状结构样式 ============ */
+.tree-container { position: relative; }
+.tree-node { position: relative; }
+
+/* 连接线 */
+.tree-line-vertical {
+    position: absolute;
+    left: -18px; /* 根据缩进调整 */
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #e5e7eb;
+}
+.tree-line-horizontal {
+    position: absolute;
+    left: -18px;
+    top: 24px; /* 卡片高度的一半左右 */
+    width: 18px;
+    height: 1px;
+    background-color: #e5e7eb;
+}
+/* 最后一个子节点不需要延伸到底部的竖线 */
+.tree-node:last-child > .tree-line-vertical {
+    height: 24px; /* 只要连接到横线即可 */
+}
+
+/* ============ 关系标签 ============ */
+.tag-dependency { background-color: #fff1f2; color: #be123c; border: 1px solid #fda4af; }
+.tag-relation { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+
+/* 视图特定样式 */
+.kanban-col { min-width: 280px; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e5e7eb; border: 1px solid #e5e7eb; }
+.calendar-cell { background: white; min-height: 100px; padding: 4px; }
+.calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.875rem; color: #6b7280; padding-bottom: 8px; }
+.quadrant-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 16px; height: 100%; }
+.quadrant-cell { background: white; border-radius: 0.75rem; padding: 1rem; border: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+
+/* ============ 树形结构核心样式 ============ */
+.tree-container {
+    padding-left: 10px; /* 整体左边距 */
+}
+
+.tree-node {
+    position: relative;
+    padding-left: 24px; /* 每层缩进 24px */
+}
+
+/* 竖线 (连接父节点到当前节点) */
+.tree-node::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #e5e7eb; /* gray-200 */
+}
+
+/* 最后一个子节点：竖线只延伸到横线位置 */
+.tree-node:last-child::before {
+    height: 26px; /* 卡片高度的一半左右 + 顶部间距 */
+    bottom: auto;
+}
+
+/* 横线 (连接竖线到卡片) */
+.tree-node::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 26px; /* 垂直居中于卡片连接点 */
+    width: 24px; /* 连到内容区 */
+    height: 1px;
+    background-color: #e5e7eb;
+}
+
+/* 根节点特殊处理：不需要左侧线条 */
+.tree-root > .tree-node {
+    padding-left: 0;
+}
+.tree-root > .tree-node::before,
+.tree-root > .tree-node::after {
+    display: none;
+}
+
+/* 折叠/展开 按钮容器 */
+.tree-toggle-btn {
+    position: absolute;
+    left: -12px; /* 定位在竖线上 */
+    top: 18px;
+    z-index: 20;
+    background-color: white;
+    border-radius: 4px;
+    color: #9ca3af;
+    transition: color 0.2s;
+}
+.tree-toggle-btn:hover {
+    color: #3b82f6;
+}
+
+/* 子任务容器 */
+.tree-children {
+    position: relative;
+    margin-left: 8px; /* 微调子列表位置 */
+}
+/* 如果父节点是最后一个，子列表不需要左侧贯穿线 (由子节点自己的 before 处理) */
+
+/* ============ 任务选择器样式 ============ */
+.task-picker-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+.task-picker-item:hover {
+    background-color: #f3f4f6;
+}
+.task-picker-item.active {
+    background-color: #eff6ff;
+}
+
+/* css/style.css */
+
+/* ... (保留原有样式) ... */
+
+/* ============ 表格视图样式 ============ */
+.task-table-container {
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    border: 1px solid #e5e7eb;
+    overflow: visible;
+}
+
+.task-table th {
+    background-color: #f9fafb;
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.task-table td {
+    padding: 0.75rem 1rem;
+    vertical-align: top; /* 内容顶部对齐 */
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+.task-table tr:last-child td {
+    border-bottom: none;
+}
+
+.task-table tr:hover {
+    background-color: #f9fafb;
+}
+
+/* 表格内的树形结构连线 */
+.table-tree-node {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+}
+
+/* 树形连接线 - 竖线 */
+.table-tree-line-v {
+    position: absolute;
+    left: -14px;
+    top: -14px; /* 连接上一行 */
+    bottom: 0;
+    width: 1px;
+    background-color: #e5e7eb;
+}
+/* 最后一个子节点，竖线只延伸到一半 */
+.is-last-child .table-tree-line-v {
+    bottom: 50%; 
+}
+
+/* 树形连接线 - 横线 */
+.table-tree-line-h {
+    position: absolute;
+    left: -14px;
+    top: 50%;
+    width: 12px;
+    height: 1px;
+    background-color: #e5e7eb;
+}
+
+/* 状态徽章 */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.status-pending { background-color: #f3f4f6; color: #4b5563; }
+.status-active { background-color: #eff6ff; color: #2563eb; }
+.status-done { background-color: #f0fdf4; color: #16a34a; }
+.status-cancelled { background-color: #fef2f2; color: #dc2626; text-decoration: line-through; }

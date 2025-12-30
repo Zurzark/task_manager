@@ -1,0 +1,471 @@
+import { store } from './store.js';
+import { escapeHtml } from './utils.js';
+
+// 辅助：获取优先级配置
+function getPriorityConfig(priority) {
+    const config = {
+        urgent: { label: '紧急', color: 'bg-red-500', icon: 'ri-alarm-warning-fill', text: 'text-red-600', bg: 'bg-red-50' },
+        high: { label: '高', color: 'bg-orange-500', icon: 'ri-arrow-up-double-fill', text: 'text-orange-600', bg: 'bg-orange-50' },
+        medium: { label: '中', color: 'bg-yellow-500', icon: 'ri-subtract-line', text: 'text-yellow-600', bg: 'bg-yellow-50' },
+        low: { label: '低', color: 'bg-green-500', icon: 'ri-arrow-down-line', text: 'text-green-600', bg: 'bg-green-50' }
+    };
+    return config[priority] || config.medium;
+}
+
+// 辅助：获取状态配置
+function getStatusConfig(status) {
+    const map = {
+        pending: { label: '待开始', class: 'status-pending' },
+        active: { label: '进行中', class: 'status-active' },
+        done: { label: '已完成', class: 'status-done' },
+        cancelled: { label: '已取消', class: 'status-cancelled' }
+    };
+    return map[status] || map.pending;
+}
+
+function getFilteredTasks() {
+    const { tasks, viewFilter, categoryFilter, sortState, statusFilter } = store;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+
+    let filtered = [...tasks];
+
+    // 1. 视图筛选 (viewFilter)
+    if (viewFilter === 'today') {
+        filtered = filtered.filter(t => t.status !== 'done' && (!t.dueDate || new Date(t.dueDate) < tomorrow));
+    } else if (viewFilter === 'completed') {
+        filtered = filtered.filter(t => t.status === 'done');
+    } else if (viewFilter === 'all') {
+        // all view shows all tasks (including done)
+        // No status filter applied
+    }
+    
+    // 2. 分类筛选 (categoryFilter) - 与视图筛选叠加
+    if (categoryFilter) {
+        filtered = filtered.filter(t => t.category === categoryFilter);
+    }
+    
+    // 2. 状态筛选 (表头筛选)
+    if (statusFilter) {
+        // If user explicitly filters by 'done' in 'all' view, we might get empty result if 'all' view excludes 'done'.
+        // This is a conflict. 
+        // If statusFilter is set, it should probably override the implicit "not done" of the view?
+        // Or statusFilter works within the current view results.
+        // Let's assume statusFilter refines current view.
+        filtered = filtered.filter(t => t.status === statusFilter);
+    }
+    
+    // 3. 多字段排序
+    if (sortState && sortState.length > 0) {
+        filtered.sort((a, b) => {
+            for (const sort of sortState) {
+                const { field, direction } = sort;
+                let result = 0;
+                
+                if (field === 'priority') {
+                    const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
+                    const weightA = priorityWeight[a.priority] || 2;
+                    const weightB = priorityWeight[b.priority] || 2;
+                    result = weightA - weightB;
+                } else {
+                    // Time fields
+                    const timeA = a[field] ? new Date(a[field]).getTime() : 0;
+                    const timeB = b[field] ? new Date(b[field]).getTime() : 0;
+                    // For times: earlier is smaller. 
+                    // If we want "Latest first" (desc), result should be A - B?
+                    // sort(a,b): negative if a < b.
+                    // timeA - timeB: if A is earlier (smaller), result negative -> A comes first (Ascending).
+                    if (timeA === 0 && timeB === 0) result = 0;
+                    else if (timeA === 0) result = 1; // Empty last
+                    else if (timeB === 0) result = -1; // Empty last
+                    else result = timeA - timeB;
+                }
+                
+                if (result !== 0) {
+                    return direction === 'asc' ? result : -result;
+                }
+            }
+            return 0;
+        });
+    } else {
+        // Fallback default sort if empty
+         const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
+         filtered.sort((a, b) => {
+             const wa = priorityWeight[a.priority] || 2;
+             const wb = priorityWeight[b.priority] || 2;
+             if (wa !== wb) return wb - wa; // High priority first
+             return 0;
+         });
+    }
+    
+    return filtered;
+}
+
+// 辅助：渲染排序表头
+function renderSortHeader(field, label) {
+    const sortIdx = store.sortState.findIndex(s => s.field === field);
+    const sortItem = sortIdx > -1 ? store.sortState[sortIdx] : null;
+    
+    let icon = 'ri-expand-up-down-fill text-gray-300';
+    if (sortItem) {
+        icon = sortItem.direction === 'asc' ? 'ri-arrow-up-line text-blue-600' : 'ri-arrow-down-line text-blue-600';
+    }
+    
+    const badge = sortItem ? `<span class="sort-badge">${sortIdx + 1}</span>` : '';
+    
+    return `
+        <th class="cursor-pointer hover:bg-gray-100 transition select-none" onclick="window.toggleSort('${field}')">
+            <div class="flex items-center gap-1">
+                ${label}
+                <i class="${icon} text-xs"></i>
+                ${badge}
+            </div>
+        </th>
+    `;
+}
+
+// 辅助：渲染状态表头
+function renderStatusHeader() {
+    const isActive = !!store.statusFilter;
+    const iconClass = isActive ? 'ri-filter-3-fill text-blue-600' : 'ri-filter-3-line text-gray-400';
+    const label = store.statusFilter ? getStatusConfig(store.statusFilter).label : '状态';
+    
+    return `
+        <th class="text-center cursor-pointer hover:bg-gray-100 transition relative" onclick="event.stopPropagation(); window.toggleStatusFilter(event)">
+            <div class="flex items-center justify-center gap-1">
+                ${label} <i class="${iconClass} text-xs"></i>
+            </div>
+            <div id="status-filter-dropdown" class="hidden absolute right-0 top-full mt-1 w-32 bg-white shadow-lg rounded-lg border z-50 text-left py-1" onclick="event.stopPropagation()">
+                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${!store.statusFilter ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter(null)">全部</div>
+                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'pending' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('pending')">待开始</div>
+                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'active' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('active')">进行中</div>
+                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'done' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('done')">已完成</div>
+                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'cancelled' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('cancelled')">已取消</div>
+            </div>
+        </th>
+    `;
+}
+
+// 构建树状结构
+function buildTaskTree(tasks) {
+    const taskMap = {};
+    const roots = [];
+    
+    tasks.forEach(t => {
+        taskMap[t.id] = { ...t, children: [] };
+    });
+
+    tasks.forEach(t => {
+        if (t.parentId && taskMap[t.parentId]) {
+            taskMap[t.parentId].children.push(taskMap[t.id]);
+        } else {
+            roots.push(taskMap[t.id]);
+        }
+    });
+
+    return roots;
+}
+
+// 格式化日期 (带颜色逻辑，主要用于截止时间)
+function formatDueDate(dateStr) {
+    if (!dateStr) return '<span class="text-gray-300">-</span>';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const isOverdue = date < now && !isToday;
+    
+    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    const dateStrFormatted = `${date.getMonth()+1}/${date.getDate()}`;
+    
+    let colorClass = 'text-gray-500';
+    if (isOverdue) colorClass = 'text-red-500 font-bold';
+    else if (isToday) colorClass = 'text-orange-600 font-bold';
+
+    return `<span class="${colorClass} text-xs flex items-center gap-1"><i class="ri-time-line"></i> ${isToday ? '今天' : dateStrFormatted} ${timeStr}</span>`;
+}
+
+// 格式化普通日期 (无特殊颜色逻辑)
+function formatDateSimple(dateStr) {
+    if (!dateStr) return '<span class="text-gray-300">-</span>';
+    const date = new Date(dateStr);
+    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    const dateStrFormatted = `${date.getMonth()+1}/${date.getDate()}`;
+    return `<span class="text-gray-500 text-xs flex items-center gap-1">${dateStrFormatted} ${timeStr}</span>`;
+}
+
+// 递归生成表格行
+function renderTableRows(nodes, level = 0, parentIsLast = true) {
+    let html = '';
+    
+    nodes.forEach((task, index) => {
+        const isLastChild = index === nodes.length - 1;
+        const isSelected = store.selectedTaskIds.has(task.id);
+        const pConfig = getPriorityConfig(task.priority);
+        const sConfig = getStatusConfig(task.status);
+        const isDone = task.status === 'done';
+        
+        // 缩进计算 (每层 24px)
+        const indentStyle = `padding-left: ${level * 24}px`;
+        
+        // 树形连线 HTML
+        const treeConnector = level > 0 ? `
+            <div class="absolute left-[-16px] top-0 bottom-0 w-4 flex items-center ${isLastChild ? 'is-last-child' : ''}">
+                <div class="table-tree-line-v"></div>
+                <div class="table-tree-line-h"></div>
+            </div>
+        ` : '';
+
+        // 折叠图标
+        const hasChildren = task.children && task.children.length > 0;
+        const toggleIcon = hasChildren 
+            ? `<button onclick="event.stopPropagation(); window.toggleCollapse('${task.id}')" class="mr-1 text-gray-400 hover:text-blue-500 z-10 relative"><i class="${task.collapsed ? 'ri-arrow-right-s-fill' : 'ri-arrow-down-s-fill'}"></i></button>`
+            : `<span class="w-4 mr-1 inline-block"></span>`;
+
+        html += `
+            <tr class="group transition-colors ${isSelected ? 'bg-blue-50' : ''}">
+                <!-- 1. 选择列 -->
+                <td class="w-10 text-center">
+                    <input type="checkbox" 
+                        onchange="window.toggleSelection('${task.id}')" 
+                        ${isSelected ? 'checked' : ''}
+                        class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-1">
+                </td>
+
+                <!-- 2. 优先级 -->
+                <td class="w-20">
+                    <div class="flex items-center gap-2" title="优先级: ${pConfig.label}">
+                        <div class="w-6 h-6 rounded flex items-center justify-center ${pConfig.bg} ${pConfig.text}">
+                            <i class="${pConfig.icon}"></i>
+                        </div>
+                    </div>
+                </td>
+
+                <!-- 3. 任务详情 (核心列) -->
+                <td class="min-w-[300px]">
+                    <div style="${indentStyle}" class="relative">
+                        ${treeConnector}
+                        <div class="flex items-start table-tree-node">
+                            ${toggleIcon}
+                            <div class="flex-1 cursor-pointer" onclick="window.triggerEdit('${task.id}')">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-xs font-mono text-gray-400">#${task.shortId}</span>
+                                    <span class="font-medium text-gray-900 ${isDone ? 'line-through text-gray-400' : ''}">${escapeHtml(task.title)}</span>
+                                    ${task.category ? `<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">#${escapeHtml(task.category)}</span>` : ''}
+                                    ${(task.tags || []).map(tag => `<span class="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">@${escapeHtml(tag)}</span>`).join('')}
+                                </div>
+                                ${task.description ? `<p class="text-xs text-gray-500 mt-1 line-clamp-1">${escapeHtml(task.description)}</p>` : ''}
+                                
+                                ${(task.relations && task.relations.length > 0) ? `
+                                    <div class="flex gap-2 mt-1">
+                                        ${task.relations.map(r => {
+                                            const icon = r.type === 'depends_on' ? 'ri-lock-2-line' : 'ri-links-line';
+                                            return `<span class="text-[10px] text-gray-400 flex items-center gap-0.5"><i class="${icon}"></i>#${r.targetShortId || '?'}</span>`;
+                                        }).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+
+                <!-- 新增：开始时间 (截止时间左侧) -->
+                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'startDate', event)">
+                    ${formatDateSimple(task.startDate)}
+                </td>
+
+                <!-- 4. 截止时间 -->
+                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'dueDate', event)">
+                    ${formatDueDate(task.dueDate)}
+                </td>
+
+                <!-- 新增：提醒时间 (截止时间右侧) -->
+                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'reminderTime', event)">
+                    ${formatDateSimple(task.reminderTime)}
+                </td>
+
+                <!-- 新增：完成时间 (截止时间右侧) -->
+                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'completedAt', event)">
+                    ${formatDateSimple(task.completedAt)}
+                </td>
+
+                <!-- 5. 状态 -->
+                <td class="w-28 text-center whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'status', event)">
+                    <span class="status-badge ${sConfig.class}">
+                        ${sConfig.label}
+                    </span>
+                </td>
+
+                <!-- 6. 操作 -->
+                <td class="w-32 text-center">
+                    <div class="flex items-center justify-center gap-3">
+                        <button onclick="event.stopPropagation(); window.toggleTaskComplete('${task.id}')" 
+                            class="text-xs font-medium text-blue-600 hover:text-blue-800 transition">
+                            ${isDone ? '重做' : '完成'}
+                        </button>
+                        <button onclick="event.stopPropagation(); window.deleteTaskAndClose('${task.id}')" 
+                            class="text-xs font-medium text-red-500 hover:text-red-700 transition">
+                            删除
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+
+        // 递归渲染子任务
+        if (hasChildren && !task.collapsed) {
+            html += renderTableRows(task.children, level + 1, isLastChild);
+        }
+    });
+    
+    return html;
+}
+
+export const render = {
+    list() {
+        const tasks = getFilteredTasks();
+        const treeRoots = buildTaskTree(tasks);
+        
+        return `
+            <div class="task-table-container">
+                <table class="w-full task-table border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="w-10 text-center">
+                                <input type="checkbox" id="select-all-checkbox-table" 
+                                    onchange="document.getElementById('select-all-checkbox').click()"
+                                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                            </th>
+                            ${renderSortHeader('priority', '优先级')}
+                            <th>任务详情</th>
+                            
+                            ${renderSortHeader('startDate', '开始时间')}
+                            ${renderSortHeader('dueDate', '截止时间')}
+                            ${renderSortHeader('reminderTime', '提醒时间')}
+                            ${renderSortHeader('completedAt', '完成时间')}
+
+                            ${renderStatusHeader()}
+                            <th class="text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tasks.length === 0 ? '<tr><td colspan="10" class="text-center text-gray-400 py-8">列表为空</td></tr>' : renderTableRows(treeRoots)}
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-xs text-gray-400 mt-2 text-right px-2">
+                共 ${tasks.length} 个任务
+            </div>
+        `;
+    },
+
+    kanban() {
+        const tasks = getFilteredTasks();
+        const columns = [
+            { id: 'urgent', title: '🔴 紧急', items: [] },
+            { id: 'high', title: '🟠 重要', items: [] },
+            { id: 'medium', title: '🟡 一般', items: [] },
+            { id: 'low', title: '🟢 低优', items: [] }
+        ];
+
+        tasks.forEach(t => {
+            const col = columns.find(c => c.id === t.priority);
+            if (col) col.items.push(t);
+        });
+
+        return `
+            <div class="flex gap-4 h-full overflow-x-auto pb-4">
+                ${columns.map(col => `
+                    <div class="kanban-col bg-gray-100 rounded-lg p-3 flex flex-col h-full w-72 flex-shrink-0">
+                        <h3 class="font-bold text-gray-700 mb-3 flex justify-between">
+                            ${col.title} <span class="bg-gray-200 px-2 rounded text-xs py-1">${col.items.length}</span>
+                        </h3>
+                        <div class="flex-1 overflow-y-auto pr-1 space-y-2">
+                            ${col.items.map(t => `
+                                <div class="bg-white p-3 rounded shadow-sm border-l-4 ${this._getBorderClass(t.priority)} cursor-pointer hover:shadow-md" onclick="window.triggerEdit('${t.id}')">
+                                    <div class="font-medium text-sm mb-1">${escapeHtml(t.title)}</div>
+                                    <div class="text-xs text-gray-500 flex justify-between">
+                                        <span>${t.category || ''}</span>
+                                        ${t.dueDate ? `<span>${new Date(t.dueDate).toLocaleDateString()}</span>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    },
+
+    quadrant() {
+        const tasks = getFilteredTasks();
+        const q1 = tasks.filter(t => t.priority === 'urgent');
+        const q2 = tasks.filter(t => t.priority === 'high');
+        const q3 = tasks.filter(t => t.priority === 'medium');
+        const q4 = tasks.filter(t => t.priority === 'low');
+
+        const renderCell = (title, list, colorClass) => `
+            <div class="quadrant-cell ${colorClass}">
+                <h3 class="font-bold mb-2 text-gray-700 border-b pb-2 flex justify-between">
+                    ${title} <span class="text-xs bg-white px-2 rounded border">${list.length}</span>
+                </h3>
+                <div class="overflow-y-auto flex-1 pr-1 space-y-2">
+                    ${list.map(t => `
+                        <div class="bg-white p-2 rounded border shadow-sm cursor-pointer hover:bg-gray-50" onclick="window.triggerEdit('${t.id}')">
+                            <div class="text-sm font-medium">${escapeHtml(t.title)}</div>
+                            ${t.dueDate ? `<div class="text-xs text-gray-400 mt-1"><i class="ri-time-line"></i> ${new Date(t.dueDate).toLocaleDateString()}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        return `
+            <div class="quadrant-grid pb-4">
+                ${renderCell('Q1: 重要且紧急 (马上做)', q1, 'border-red-200 bg-red-50')}
+                ${renderCell('Q2: 重要不紧急 (计划做)', q2, 'border-orange-200 bg-orange-50')}
+                ${renderCell('Q3: 紧急不重要 (授权做)', q3, 'border-yellow-200 bg-yellow-50')}
+                ${renderCell('Q4: 不重要不紧急 (稍后做)', q4, 'border-green-200 bg-green-50')}
+            </div>
+        `;
+    },
+
+    calendar() {
+        const tasks = getFilteredTasks();
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startDayOfWeek = firstDay.getDay();
+
+        let html = `
+            <div class="h-full flex flex-col bg-white rounded-lg shadow overflow-hidden">
+                <div class="p-4 border-b font-bold text-center">${year}年 ${month + 1}月</div>
+                <div class="calendar-header bg-gray-50 pt-2">
+                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                </div>
+                <div class="calendar-grid flex-1 overflow-y-auto">
+        `;
+        for (let i = 0; i < startDayOfWeek; i++) html += `<div class="calendar-cell bg-gray-50"></div>`;
+        for (let d = 1; d <= daysInMonth; d++) {
+            const currentDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dayTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(currentDateStr));
+            html += `
+                <div class="calendar-cell hover:bg-blue-50 transition">
+                    <div class="text-xs font-bold text-gray-500 mb-1">${d}</div>
+                    <div class="space-y-1">
+                        ${dayTasks.map(t => `<div class="text-[10px] truncate px-1 rounded bg-blue-100 text-blue-700 cursor-pointer" onclick="window.triggerEdit('${t.id}')">${escapeHtml(t.title)}</div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        html += `</div></div>`;
+        return html;
+    },
+
+    _getBorderClass(priority) {
+        const map = { urgent: 'border-l-red-500', high: 'border-l-orange-500', medium: 'border-l-yellow-500', low: 'border-l-green-500' };
+        return map[priority] || 'border-l-gray-300';
+    }
+};
