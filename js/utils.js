@@ -77,3 +77,34 @@ ${childrenText}
         `.trim();
     }).filter(Boolean).join('\n\n');
 }
+
+// 辅助：获取上海时间输入值
+export function getShanghaiInputValue(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+    const Y = sd.getFullYear();
+    const M = String(sd.getMonth()+1).padStart(2,'0');
+    const D = String(sd.getDate()).padStart(2,'0');
+    const h = String(sd.getHours()).padStart(2,'0');
+    const m = String(sd.getMinutes()).padStart(2,'0');
+    return `${Y}-${M}-${D}T${h}:${m}`;
+}
+
+export function extractJsonFromResponse(text) {
+    if (!text) return null;
+    // 1. 尝试匹配 ```json ... ``` (最常见)
+    const markdownMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    if (markdownMatch) try { return JSON.parse(markdownMatch[1]); } catch (e) {}
+    
+    // 2. 尝试匹配 ``` ... ``` (未标记语言)
+    const codeMatch = text.match(/```\s*([\s\S]*?)\s*```/);
+    if (codeMatch) try { return JSON.parse(codeMatch[1]); } catch (e) {}
+    
+    // 3. 尝试匹配纯数组 [...]
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (arrayMatch) try { return JSON.parse(arrayMatch[0]); } catch (e) {}
+    
+    // 4. 尝试直接解析
+    try { return JSON.parse(text); } catch (e) { return null; }
+}
