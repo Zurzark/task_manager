@@ -707,10 +707,22 @@ window.updateStatusFilter = (value, checked) => {
 
 // 点击外部关闭下拉
 document.addEventListener('click', (e) => {
-    const container = document.getElementById('status-filter-container');
-    const menu = document.getElementById('status-filter-menu');
-    if (container && !container.contains(e.target) && !menu.classList.contains('hidden')) {
-        menu.classList.add('hidden');
+    // 状态下拉
+    const statusContainer = document.getElementById('status-filter-container');
+    const statusMenu = document.getElementById('status-filter-menu');
+    if (statusContainer && !statusContainer.contains(e.target) && statusMenu && !statusMenu.classList.contains('hidden')) {
+        statusMenu.classList.add('hidden');
+    }
+
+    // 创建时间下拉
+    const createdContainer = document.querySelector('.group\\/created'); // Selector might be tricky with slash
+    const createdPopover = document.getElementById('created-filter-popover');
+    // 使用更通用的查找方式
+    if (createdPopover && !createdPopover.classList.contains('hidden')) {
+        // 如果点击的不是 popover 内部，也不是触发按钮
+        if (!e.target.closest('#created-filter-popover') && !e.target.closest('.group\\/created button')) {
+            createdPopover.classList.add('hidden');
+        }
     }
 });
 
@@ -742,7 +754,61 @@ window.clearDateFilter = () => {
     updateUI();
 };
 
+// 筛选：创建时间
+window.updateCreatedFilter = () => {
+    const start = document.getElementById('filter-created-start').value;
+    const end = document.getElementById('filter-created-end').value;
+    const label = document.getElementById('created-filter-label');
+    const popover = document.getElementById('created-filter-popover');
+    
+    if (start && end) {
+        if (new Date(start) > new Date(end)) {
+            alert('开始日期不能晚于结束日期');
+            return;
+        }
+        store.createdAtRangeFilter = { start, end };
+        label.textContent = `${start.slice(5)}~${end.slice(5)}`;
+        label.classList.add('text-blue-600', 'font-medium');
+    } else {
+        store.createdAtRangeFilter = null;
+        label.textContent = '不限时间';
+        label.classList.remove('text-blue-600', 'font-medium');
+    }
+    
+    store.pagination.list.page = 1;
+    popover.classList.add('hidden');
+    updateUI();
+};
+
+window.clearCreatedFilter = () => {
+    document.getElementById('filter-created-start').value = '';
+    document.getElementById('filter-created-end').value = '';
+    const label = document.getElementById('created-filter-label');
+    const popover = document.getElementById('created-filter-popover');
+    
+    store.createdAtRangeFilter = null;
+    label.textContent = '不限时间';
+    label.classList.remove('text-blue-600', 'font-medium');
+    
+    store.pagination.list.page = 1;
+    popover.classList.add('hidden');
+    updateUI();
+};
+
 // ============ 分页逻辑 ============
+
+// 列表分页大小
+window.changeListPageSize = (size) => {
+    store.pagination.list.pageSize = parseInt(size);
+    store.pagination.list.page = 1; // 重置到第一页
+    updateUI();
+};
+
+// 跳转到指定页
+window.goToListPage = (page) => {
+    store.pagination.list.page = page;
+    updateUI();
+};
 
 // 列表分页
 window.changeListPage = (delta) => {

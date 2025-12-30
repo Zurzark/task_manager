@@ -80,8 +80,19 @@ function getFilteredTasks() {
             return d >= start && d <= end;
         });
     }
+
+    // 7. 新增：创建时间筛选
+    if (store.createdAtRangeFilter && store.createdAtRangeFilter.start && store.createdAtRangeFilter.end) {
+        const start = new Date(store.createdAtRangeFilter.start); start.setHours(0,0,0,0);
+        const end = new Date(store.createdAtRangeFilter.end); end.setHours(23,59,59,999);
+        filtered = filtered.filter(t => {
+            if (!t.createdAt) return false;
+            const d = new Date(t.createdAt);
+            return d >= start && d <= end;
+        });
+    }
     
-    // 7. 多字段排序
+    // 8. 多字段排序
     if (sortState && sortState.length > 0) {
         filtered.sort((a, b) => {
             for (const sort of sortState) {
@@ -208,11 +219,50 @@ function formatDateSimple(dateStr) {
 // 辅助：获取行动项配置
 function getActionTypeConfig(type) {
     const map = {
-        'NEXT': { label: '下一步', class: 'bg-blue-100 text-blue-700 border-blue-200' },
-        'WAITING': { label: '等待', class: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+        'NEXT': { label: '下一步', class: 'bg-green-100 text-green-700 border-green-200' }, // 改为绿色
+        'WAITING': { label: '等待', class: 'bg-red-100 text-red-700 border-red-200' }, // 改为红色
         'SOMEDAY': { label: '将来', class: 'bg-gray-100 text-gray-600 border-gray-200' }
     };
     return map[type] || map['NEXT'];
+}
+
+// 格式化日期：更智能的显示
+function formatSmartDate(dateStr, isDueDate = false) {
+    if (!dateStr) return '<span class="text-gray-300">-</span>';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    const in3Days = new Date(today); in3Days.setDate(in3Days.getDate() + 3);
+    const in7Days = new Date(today); in7Days.setDate(in7Days.getDate() + 7);
+    
+    const isPast = date < now;
+    const isToday = date >= today && date < tomorrow;
+    const isSoon = date >= tomorrow && date < in3Days;
+    const isThisWeek = date >= in3Days && date < in7Days;
+    
+    let colorClass = 'text-gray-600';
+    let icon = '';
+    
+    if (isDueDate) {
+        if (isPast && !isToday) { colorClass = 'text-red-600 font-bold'; icon = 'ri-alarm-warning-fill'; } // 过期
+        else if (isToday) { colorClass = 'text-orange-600 font-bold'; icon = 'ri-fire-fill'; } // 今天
+        else if (isSoon) { colorClass = 'text-yellow-600 font-medium'; icon = 'ri-timer-flash-line'; } // 3天内
+        else if (isThisWeek) { colorClass = 'text-blue-600'; icon = 'ri-calendar-event-line'; } // 7天内
+        else { colorClass = 'text-gray-500'; icon = 'ri-calendar-line'; } // 远期
+    } else {
+        // 创建时间等
+        colorClass = 'text-gray-400';
+    }
+
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    const time = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+    
+    return `<div class="flex items-center gap-1 ${colorClass} text-xs">
+        ${icon ? `<i class="${icon}"></i>` : ''}
+        <span>${m}/${d} ${time}</span>
+    </div>`;
 }
 
 // 递归生成表格行
@@ -229,25 +279,32 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
         const isDone = task.status === 'done';
         const isFrog = task.isFrog;
         
-        // 缩进计算 (每层 24px)
-        const indentStyle = `padding-left: ${level * 24}px`;
+        // 状态背景色逻辑
+        let rowBgClass = '';
+        if (isSelected) rowBgClass = 'bg-blue-50';
+        else if (task.status === 'done') rowBgClass = 'bg-gray-50 opacity-75'; // 已完成：浅灰 + 降低透明度
+        else if (task.status === 'cancelled') rowBgClass = 'bg-gray-100 opacity-60 line-through-gray'; // 已取消
+        else if (isFrog) rowBgClass = 'bg-red-50/30'; // 青蛙：淡红 (优先级低于选中，但高于普通)
         
-        // 树形连线 HTML
+        // 缩进计算 (每层 24px -> 32px 增加层次感)
+        const indentStyle = `padding-left: ${level * 32}px`;
+        
+        // 树形连线 HTML (增强版)
         const treeConnector = level > 0 ? `
-            <div class="absolute left-[-16px] top-0 bottom-0 w-4 flex items-center ${isLastChild ? 'is-last-child' : ''}">
-                <div class="table-tree-line-v"></div>
-                <div class="table-tree-line-h"></div>
+            <div class="absolute left-[-20px] top-0 bottom-0 w-6 flex items-center justify-center ${isLastChild ? 'is-last-child' : ''}">
+                 <div class="h-full w-px bg-gray-200 group-hover:bg-gray-300"></div> <!-- 竖线 -->
+                 <div class="absolute left-1/2 top-1/2 w-4 h-px bg-gray-200 group-hover:bg-gray-300"></div> <!-- 横线 -->
             </div>
         ` : '';
 
-        // 折叠图标
+        // 折叠图标 (增强版)
         const hasChildren = task.children && task.children.length > 0;
         const toggleIcon = hasChildren 
-            ? `<button onclick="event.stopPropagation(); window.toggleCollapse('${task.id}')" class="mr-1 text-gray-400 hover:text-blue-500 z-10 relative"><i class="${task.collapsed ? 'ri-arrow-right-s-fill' : 'ri-arrow-down-s-fill'}"></i></button>`
-            : `<span class="w-4 mr-1 inline-block"></span>`;
+            ? `<button onclick="event.stopPropagation(); window.toggleCollapse('${task.id}')" class="mr-2 text-gray-400 hover:text-blue-500 z-10 relative transition-transform ${task.collapsed ? '-rotate-90' : 'rotate-0'}"><i class="ri-arrow-down-s-fill text-lg"></i></button>`
+            : `<span class="w-6 mr-2 inline-block flex justify-center"><i class="ri-checkbox-blank-circle-fill text-[4px] text-gray-300"></i></span>`; // 叶子节点显示小点
 
         html += `
-            <tr class="group transition-colors ${isSelected ? 'bg-blue-50' : ''} ${isFrog ? 'bg-red-50/30' : ''}">
+            <tr class="group transition-colors ${rowBgClass}">
                 <!-- 1. 选择列 -->
                 <td class="w-10 text-center">
                     <input type="checkbox" 
@@ -281,36 +338,25 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </div>
                 </td>
 
-                <!-- 4. 行动项 (新增) -->
-                <td class="w-24 text-center">
-                    <div class="relative group/action">
-                        <span onclick="event.stopPropagation()" 
-                            class="px-2 py-1 rounded text-xs font-medium border cursor-pointer select-none ${aConfig.class}">
-                            ${aConfig.label}
-                        </span>
-                        <!-- 简易下拉菜单 -->
-                        <div class="hidden group-hover/action:block absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-yellow-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
-                        </div>
-                    </div>
-                </td>
+                <!-- 4. 行动项 (移到详情右侧) -->
+                <!-- 移除原位置 -->
 
                 <!-- 5. 任务详情 (核心列) -->
-                <td class="min-w-[300px]">
+                <td class="min-w-[300px] border-r border-transparent group-hover:border-gray-100 transition">
                     <div style="${indentStyle}" class="relative">
                         ${treeConnector}
-                        <div class="flex items-start table-tree-node">
+                        <div class="flex items-start table-tree-node py-2">
                             ${toggleIcon}
                             <div class="flex-1 cursor-pointer" onclick="window.triggerEdit('${task.id}')">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-xs font-mono text-gray-400">#${task.shortId}</span>
+                                    <span class="text-xs font-mono text-gray-400 select-none">#${task.shortId}</span>
                                     <span class="font-medium text-gray-900 ${isDone ? 'line-through text-gray-400' : ''} ${isFrog ? 'font-bold text-gray-800' : ''}">${escapeHtml(task.title)}</span>
                                     ${task.category ? `<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">#${escapeHtml(task.category)}</span>` : ''}
                                     ${(task.tags || []).map(tag => `<span class="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">@${escapeHtml(tag)}</span>`).join('')}
                                 </div>
-                                ${task.description ? `<p class="text-xs text-gray-500 mt-1 line-clamp-1">${escapeHtml(task.description)}</p>` : ''}
+                                <div class="flex gap-3 mt-1 items-center">
+                                    ${task.description ? `<p class="text-xs text-gray-500 line-clamp-1 flex-1">${escapeHtml(task.description)}</p>` : ''}
+                                </div>
                                 
                                 ${(task.relations && task.relations.length > 0) ? `
                                     <div class="flex gap-2 mt-1">
@@ -325,12 +371,30 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </div>
                 </td>
 
-                <!-- 6. 截止时间 (含开始时间) -->
-                <td class="w-40 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'dueDate', event)">
-                    <div class="flex flex-col items-start justify-center h-full">
-                        ${task.startDate ? `<span class="text-[10px] text-gray-400 scale-90 origin-left">🏁 ${formatDateSimple(task.startDate).replace(/<[^>]+>/g, '')}</span>` : ''}
-                        ${formatDueDate(task.dueDate)}
+                <!-- 4. 行动项 (新位置) -->
+                <td class="w-20 text-center">
+                    <div class="relative group/action flex justify-center">
+                        <span onclick="event.stopPropagation()" 
+                            class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
+                            ${aConfig.label}
+                        </span>
+                        <!-- 简易下拉菜单 -->
+                        <div class="hidden group-hover/action:block absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
+                        </div>
                     </div>
+                </td>
+
+                <!-- 创建时间 (新列) -->
+                <td class="w-32 whitespace-nowrap text-center">
+                    ${formatSmartDate(task.createdAt)}
+                </td>
+
+                <!-- 6. 截止时间 (含开始时间) -->
+                <td class="w-32 whitespace-nowrap editable-cell text-center" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'dueDate', event)">
+                     ${formatSmartDate(task.dueDate, true)}
                 </td>
 
                 <!-- 7. 状态 -->
@@ -404,9 +468,11 @@ export const render = {
                                         优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}
                                     </div>
                                 </th>
-                                <th class="w-24 text-center text-gray-500 font-normal">行动</th>
-                                <th>任务详情</th>
                                 
+                                <th>任务详情</th>
+                                <th class="w-20 text-center text-gray-500 font-normal">行动</th>
+                                
+                                <th class="w-32 text-center text-gray-500 font-normal">创建时间</th>
                                 ${renderSortHeader('dueDate', '截止时间')}
                                 
                                 ${renderStatusHeader()}
@@ -421,12 +487,40 @@ export const render = {
                 
                 <!-- 分页控件 -->
                 <div class="flex justify-between items-center px-4 py-3 border-t bg-gray-50">
-                    <div class="text-xs text-gray-500">
-                        共 ${totalItems} 项，第 ${currentPage}/${totalPages} 页
+                    <div class="flex items-center gap-4">
+                        <div class="text-xs text-gray-500">
+                            共 ${totalItems} 项，第 ${currentPage}/${totalPages} 页
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-gray-500">
+                            <span>每页:</span>
+                            <select onchange="window.changeListPageSize(this.value)" class="border border-gray-200 rounded px-1 py-0.5 bg-white focus:ring-1 focus:ring-blue-500 cursor-pointer">
+                                <option value="5" ${pageSize===5?'selected':''}>5</option>
+                                <option value="10" ${pageSize===10?'selected':''}>10</option>
+                                <option value="20" ${pageSize===20?'selected':''}>20</option>
+                                <option value="50" ${pageSize===50?'selected':''}>50</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="window.changeListPage(-1)" ${currentPage === 1 ? 'disabled' : ''} class="px-2 py-1 border rounded text-xs hover:bg-white disabled:opacity-50">上一页</button>
-                        <button onclick="window.changeListPage(1)" ${currentPage === totalPages ? 'disabled' : ''} class="px-2 py-1 border rounded text-xs hover:bg-white disabled:opacity-50">下一页</button>
+                    <div class="flex gap-2 items-center">
+                        <button onclick="window.changeListPage(-1)" ${currentPage === 1 ? 'disabled' : ''} class="px-2 py-1 border rounded text-xs hover:bg-white disabled:opacity-50 transition">上一页</button>
+                        
+                        <!-- 快速页码 (只显示部分) -->
+                        <div class="flex gap-1">
+                            ${Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                                // 简单的逻辑：显示前5页，实际应更复杂
+                                // 这里做一个简单的滑动窗口：显示当前页附近的页码
+                                let p = i + 1;
+                                if (totalPages > 5) {
+                                    if (currentPage > 3) p = currentPage - 2 + i;
+                                    if (p > totalPages) p = totalPages - (4 - i);
+                                }
+                                if (p < 1) p = 1; // Safety
+                                
+                                return `<button onclick="window.goToListPage(${p})" class="px-2 py-1 border rounded text-xs transition ${p === currentPage ? 'bg-blue-50 text-blue-600 border-blue-200 font-bold' : 'hover:bg-white text-gray-600'}">${p}</button>`;
+                            }).join('')}
+                        </div>
+
+                        <button onclick="window.changeListPage(1)" ${currentPage === totalPages ? 'disabled' : ''} class="px-2 py-1 border rounded text-xs hover:bg-white disabled:opacity-50 transition">下一页</button>
                     </div>
                 </div>
             </div>

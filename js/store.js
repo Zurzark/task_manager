@@ -75,6 +75,7 @@ export const store = {
     frogFilter: false, // 新增：青蛙筛选
     actionTypeFilter: 'all', // 新增：行动项筛选
     dateRangeFilter: null, // 新增：日期范围筛选 { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }
+    createdAtRangeFilter: null, // 新增：创建时间筛选 { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }
     currentViewMode: 'list',
     selectedTaskIds: new Set(),
     sortState: [{ field: 'priority', direction: 'desc' }],
