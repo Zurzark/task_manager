@@ -193,12 +193,17 @@ function buildTaskTree(tasks) {
 function formatDueDate(dateStr) {
     if (!dateStr) return '<span class="text-gray-300">-</span>';
     const date = new Date(dateStr);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    const isOverdue = date < now && !isToday;
     
-    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    const dateStrFormatted = `${date.getMonth()+1}/${date.getDate()}`;
+    // Shift to Shanghai "virtual" time for comparison
+    const sd = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+    const now = new Date();
+    const nowSd = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+    
+    const isToday = sd.toDateString() === nowSd.toDateString();
+    const isOverdue = sd < nowSd && !isToday;
+    
+    const timeStr = date.toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false });
+    const dateStrFormatted = `${sd.getMonth()+1}/${sd.getDate()}`;
     
     let colorClass = 'text-gray-500';
     if (isOverdue) colorClass = 'text-red-500 font-bold';
@@ -211,8 +216,10 @@ function formatDueDate(dateStr) {
 function formatDateSimple(dateStr) {
     if (!dateStr) return '<span class="text-gray-300">-</span>';
     const date = new Date(dateStr);
-    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    const dateStrFormatted = `${date.getMonth()+1}/${date.getDate()}`;
+    const sd = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+    
+    const timeStr = date.toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false });
+    const dateStrFormatted = `${sd.getMonth()+1}/${sd.getDate()}`;
     return `<span class="text-gray-500 text-xs flex items-center gap-1">${dateStrFormatted} ${timeStr}</span>`;
 }
 
@@ -230,16 +237,21 @@ function getActionTypeConfig(type) {
 function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
     if (!dateStr) return '<span class="text-gray-300">-</span>';
     const date = new Date(dateStr);
-    const now = new Date();
-    const today = new Date(); today.setHours(0,0,0,0);
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-    const in3Days = new Date(today); in3Days.setDate(in3Days.getDate() + 3);
-    const in7Days = new Date(today); in7Days.setDate(in7Days.getDate() + 7);
     
-    const isPast = date < now;
-    const isToday = date >= today && date < tomorrow;
-    const isSoon = date >= tomorrow && date < in3Days;
-    const isThisWeek = date >= in3Days && date < in7Days;
+    // Shift to Shanghai
+    const sd = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+    const now = new Date();
+    const nowSd = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+    
+    const todaySd = new Date(nowSd); todaySd.setHours(0,0,0,0);
+    const tomorrowSd = new Date(todaySd); tomorrowSd.setDate(tomorrowSd.getDate() + 1);
+    const in3DaysSd = new Date(todaySd); in3DaysSd.setDate(in3DaysSd.getDate() + 3);
+    const in7DaysSd = new Date(todaySd); in7DaysSd.setDate(in7DaysSd.getDate() + 7);
+    
+    const isPast = sd < nowSd;
+    const isToday = sd >= todaySd && sd < tomorrowSd;
+    const isSoon = sd >= tomorrowSd && sd < in3DaysSd;
+    const isThisWeek = sd >= in3DaysSd && sd < in7DaysSd;
     
     let colorClass = 'text-gray-600';
     let icon = ''; // Default icon or emoji
@@ -261,9 +273,9 @@ function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
         colorClass = 'text-gray-400';
     }
 
-    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const d = date.getDate().toString().padStart(2, '0');
-    const time = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+    const m = (sd.getMonth() + 1).toString().padStart(2, '0');
+    const d = sd.getDate().toString().padStart(2, '0');
+    const time = sd.getHours().toString().padStart(2, '0') + ':' + sd.getMinutes().toString().padStart(2, '0');
     
     return `<div class="flex items-center gap-1 ${colorClass} text-xs justify-center">
         ${icon ? `<span class="text-sm">${icon}</span>` : ''}
@@ -290,7 +302,14 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
         if (isSelected) rowBgClass = 'bg-blue-50';
         else if (task.status === 'done') rowBgClass = 'bg-gray-100/80 grayscale'; // 已完成：更深的灰，去色
         else if (task.status === 'cancelled') rowBgClass = 'bg-gray-100 opacity-60 line-through-gray'; // 已取消
-        else if (isFrog) rowBgClass = 'bg-red-50/30'; // 青蛙：淡红 (优先级低于选中，但高于普通)
+        else if (isFrog) rowBgClass = 'bg-green-50 shadow-sm border-l-4 border-green-500'; // 青蛙：高级绿，左侧强调
+
+        // 标题颜色逻辑
+        let titleColorClass = 'text-gray-900';
+        if (task.priority === 'urgent') titleColorClass = 'text-red-700 font-bold';
+        else if (task.priority === 'high') titleColorClass = 'text-yellow-700 font-bold';
+        else if (task.priority === 'medium') titleColorClass = 'text-blue-700 font-bold';
+        else if (task.priority === 'low') titleColorClass = 'text-green-700 font-bold';
         
         // 缩进计算 (每层 24px -> 32px 增加层次感)
         const indentStyle = `padding-left: ${level * 32}px`;
@@ -327,27 +346,23 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </button>
                 </td>
 
-                <!-- 3. 优先级 (Badge) -->
-                <td class="w-24 text-center">
-                     <div class="relative group/priority flex justify-center z-20">
+                <!-- 3. 行动项 (新位置) -->
+                <td class="w-20 text-center">
+                    <div class="relative group/action flex justify-center z-20 hover:z-50">
                         <span onclick="event.stopPropagation()" 
-                             class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${pBadgeConfig.class}">
-                             ${pBadgeConfig.label}
+                            class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
+                            ${aConfig.label}
                         </span>
-                        <!-- 优先级下拉菜单 -->
-                        <div class="hidden group-hover/priority:block absolute left-0 top-full mt-1 w-28 bg-white shadow-lg rounded border z-50 text-left py-1">
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updatePriority('${task.id}', 'urgent')">重要且紧急</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-orange-600" onclick="window.updatePriority('${task.id}', 'high')">重要不紧急</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updatePriority('${task.id}', 'medium')">不重要紧急</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updatePriority('${task.id}', 'low')">不重要不紧急</div>
+                        <!-- 简易下拉菜单 -->
+                        <div class="hidden group-hover/action:block absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
                         </div>
                     </div>
                 </td>
 
-                <!-- 4. 行动项 (移到详情右侧) -->
-                <!-- 移除原位置 -->
-
-                <!-- 5. 任务详情 (核心列) -->
+                <!-- 4. 任务详情 (核心列) -->
                 <td class="min-w-[300px] border-r border-transparent group-hover:border-gray-100 transition">
                     <div style="${indentStyle}" class="relative">
                         ${treeConnector}
@@ -356,7 +371,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                             <div class="flex-1 cursor-pointer" onclick="window.triggerEdit('${task.id}')">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="text-xs font-mono text-gray-400 select-none">#${task.shortId}</span>
-                                    <span class="font-medium text-gray-900 ${isDone ? 'line-through text-gray-400' : ''} ${isFrog ? 'font-bold text-gray-800' : ''}">${escapeHtml(task.title)}</span>
+                                    <span class="font-medium ${isDone ? 'line-through text-gray-400' : titleColorClass} ${isFrog ? 'font-bold' : ''}">${escapeHtml(task.title)}</span>
                                     ${task.category ? `<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">#${escapeHtml(task.category)}</span>` : ''}
                                     ${(task.tags || []).map(tag => `<span class="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">@${escapeHtml(tag)}</span>`).join('')}
                                 </div>
@@ -377,18 +392,19 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </div>
                 </td>
 
-                <!-- 4. 行动项 (新位置) -->
-                <td class="w-20 text-center">
-                    <div class="relative group/action flex justify-center z-20">
+                <!-- 5. 优先级 (Badge) -->
+                <td class="w-24 text-center">
+                     <div class="relative group/priority flex justify-center z-20 hover:z-50">
                         <span onclick="event.stopPropagation()" 
-                            class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
-                            ${aConfig.label}
+                             class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${pBadgeConfig.class}">
+                             ${pBadgeConfig.label}
                         </span>
-                        <!-- 简易下拉菜单 -->
-                        <div class="hidden group-hover/action:block absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
+                        <!-- 优先级下拉菜单 -->
+                        <div class="hidden group-hover/priority:block absolute left-0 top-full mt-1 w-28 bg-white shadow-lg rounded border z-50 text-left py-1">
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updatePriority('${task.id}', 'urgent')">重要且紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-orange-600" onclick="window.updatePriority('${task.id}', 'high')">重要不紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updatePriority('${task.id}', 'medium')">不重要紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updatePriority('${task.id}', 'low')">不重要不紧急</div>
                         </div>
                     </div>
                 </td>
@@ -468,14 +484,14 @@ export const render = {
                                         class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                                 </th>
                                 <th class="w-12 text-center">🐸</th>
+                                <th class="w-20 text-center text-gray-500 font-normal">行动</th>
+                                
+                                <th>任务详情</th>
                                 <th class="w-24 text-center cursor-pointer select-none" onclick="window.toggleSort('priority')">
                                     <div class="flex items-center justify-center gap-1 text-gray-500 font-normal">
                                         优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}
                                     </div>
                                 </th>
-                                
-                                <th>任务详情</th>
-                                <th class="w-20 text-center text-gray-500 font-normal">行动</th>
                                 
                                 <th class="w-32 text-center text-gray-500 font-normal">创建时间</th>
                                 ${renderSortHeader('dueDate', '截止时间')}
@@ -535,10 +551,10 @@ export const render = {
     kanban() {
         const tasks = getFilteredTasks();
         const columns = [
-            { id: 'urgent', title: '🔴 紧急', items: [] },
-            { id: 'high', title: '🟠 重要', items: [] },
-            { id: 'medium', title: '🟡 一般', items: [] },
-            { id: 'low', title: '🟢 低优', items: [] }
+            { id: 'urgent', title: '🔴 重要且紧急', items: [] },
+            { id: 'high', title: '🟠 重要不紧急', items: [] },
+            { id: 'medium', title: '� 不重要紧急', items: [] },
+            { id: 'low', title: '🟢 不重要不紧急', items: [] }
         ];
 
         tasks.forEach(t => {
@@ -547,9 +563,9 @@ export const render = {
         });
 
         return `
-            <div class="flex gap-4 h-full overflow-x-auto pb-4">
+            <div class="flex gap-4 h-full overflow-x-auto pb-4 px-2">
                 ${columns.map(col => `
-                    <div class="kanban-col bg-gray-100 rounded-lg p-3 flex flex-col h-full w-72 flex-shrink-0">
+                    <div class="kanban-col bg-gray-100 rounded-lg p-3 flex flex-col h-full w-full min-w-[280px] flex-1">
                         <h3 class="font-bold text-gray-700 mb-3 flex justify-between">
                             ${col.title} <span class="bg-gray-200 px-2 rounded text-xs py-1">${col.items.length}</span>
                         </h3>
@@ -615,7 +631,7 @@ export const render = {
             <div class="quadrant-grid pb-4">
                 ${renderCell('Q1: 重要且紧急 (马上做)', q1, 'border-red-200 bg-red-50', 'urgent')}
                 ${renderCell('Q2: 重要不紧急 (计划做)', q2, 'border-orange-200 bg-orange-50', 'high')}
-                ${renderCell('Q3: 紧急不重要 (授权做)', q3, 'border-yellow-200 bg-yellow-50', 'medium')}
+                ${renderCell('Q3: 不重要紧急 (授权做)', q3, 'border-blue-200 bg-blue-50', 'medium')}
                 ${renderCell('Q4: 不重要不紧急 (稍后做)', q4, 'border-green-200 bg-green-50', 'low')}
             </div>
         `;

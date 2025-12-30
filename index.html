@@ -7,6 +7,24 @@
     <script src="js/tailwindcss.js"></script>
     <link href="css/remixicon.css" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* 日期选择器全区域可点击 */
+        input[type="date"] {
+            position: relative;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            color: transparent;
+            background: transparent;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div id="app" class="flex h-screen">
@@ -202,12 +220,28 @@
                     <div class="h-4 w-px bg-gray-300 mx-2"></div>
 
                     <!-- 时间范围筛选 -->
-                    <div class="flex items-center gap-2 text-sm">
+                    <div class="flex items-center gap-2 text-sm group/deadline">
                         <span class="text-gray-500">截止:</span>
-                        <input type="date" id="filter-date-start" class="border border-gray-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" onchange="window.updateDateRangeFilter()">
-                        <span class="text-gray-400">-</span>
-                        <input type="date" id="filter-date-end" class="border border-gray-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" onchange="window.updateDateRangeFilter()">
-                        <button onclick="window.clearDateFilter()" class="text-gray-400 hover:text-red-500 ml-1 transition" title="清除日期"><i class="ri-close-circle-fill"></i></button>
+                        <div class="relative">
+                            <button class="text-gray-600 hover:text-blue-600 text-xs flex items-center gap-1 border rounded px-2 py-1 bg-white" onclick="document.getElementById('deadline-filter-popover').classList.toggle('hidden')">
+                                <span id="deadline-filter-label">不限时间</span>
+                                <i class="ri-calendar-event-line"></i>
+                            </button>
+                            <!-- 简易弹出层 -->
+                            <div id="deadline-filter-popover" class="hidden absolute left-0 top-full mt-2 bg-white shadow-xl rounded-lg border p-3 z-50 w-72">
+                                <div class="space-y-3">
+                                    <div class="flex items-center gap-2">
+                                        <input type="date" id="filter-date-start" class="w-full border rounded px-2 py-1 text-xs">
+                                        <span class="text-gray-400">-</span>
+                                        <input type="date" id="filter-date-end" class="w-full border rounded px-2 py-1 text-xs">
+                                    </div>
+                                    <div class="flex justify-end gap-2">
+                                        <button onclick="window.clearDateFilter()" class="text-xs text-gray-500 hover:text-gray-700">清除</button>
+                                        <button onclick="window.updateDateRangeFilter()" class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">应用</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="h-4 w-px bg-gray-300 mx-2"></div>
@@ -221,7 +255,7 @@
                                 <i class="ri-calendar-2-line"></i>
                             </button>
                             <!-- 简易弹出层 -->
-                            <div id="created-filter-popover" class="hidden absolute left-0 top-full mt-2 bg-white shadow-xl rounded-lg border p-3 z-50 w-64">
+                            <div id="created-filter-popover" class="hidden absolute left-0 top-full mt-2 bg-white shadow-xl rounded-lg border p-3 z-50 w-72">
                                 <div class="space-y-3">
                                     <div class="flex items-center gap-2">
                                         <input type="date" id="filter-created-start" class="w-full border rounded px-2 py-1 text-xs">

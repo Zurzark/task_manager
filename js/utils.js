@@ -12,7 +12,12 @@ export function generateId() {
 export function formatFullDateTime(date) {
     const d = new Date(date);
     const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${weekdays[d.getDay()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    
+    // Convert to Shanghai time for display parts
+    const shanghaiDateStr = d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' });
+    const sd = new Date(shanghaiDateStr);
+    
+    return `${sd.getFullYear()}年${sd.getMonth()+1}月${sd.getDate()}日 ${weekdays[sd.getDay()]} ${String(sd.getHours()).padStart(2,'0')}:${String(sd.getMinutes()).padStart(2,'0')}`;
 }
 
 export function escapeHtml(text) {

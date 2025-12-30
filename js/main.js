@@ -4,6 +4,19 @@ import { render } from './views.js';
 import { generateId, escapeHtml, extractReferences, buildReferencedTasksContext, formatFullDateTime } from './utils.js';
 import { callAI } from './api.js';
 
+// 辅助：获取上海时间输入值
+function getShanghaiInputValue(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+    const Y = sd.getFullYear();
+    const M = String(sd.getMonth()+1).padStart(2,'0');
+    const D = String(sd.getDate()).padStart(2,'0');
+    const h = String(sd.getHours()).padStart(2,'0');
+    const m = String(sd.getMinutes()).padStart(2,'0');
+    return `${Y}-${M}-${D}T${h}:${m}`;
+}
+
 // ============ 初始化与UI更新 ============
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -35,6 +48,17 @@ function initUI() {
     // AI 解析按钮
     const aiBtn = document.getElementById('btn-ai-parse');
     if (aiBtn) aiBtn.addEventListener('click', handleAIParse);
+
+    // 快捷键: Ctrl+Enter 解析
+    const taskInput = document.getElementById('task-input');
+    if (taskInput) {
+        taskInput.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                handleAIParse();
+            }
+        });
+    }
 
     // 快速添加按钮
     const addBtn = document.getElementById('btn-quick-add');
@@ -529,15 +553,15 @@ function openTaskModal(taskId) {
                     <div class="grid grid-cols-3 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">开始时间</label>
-                            <input type="datetime-local" id="edit-start" value="${task.startDate ? task.startDate.slice(0,16) : ''}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            <input type="datetime-local" id="edit-start" value="${getShanghaiInputValue(task.startDate)}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">截止时间</label>
-                            <input type="datetime-local" id="edit-due" value="${task.dueDate ? task.dueDate.slice(0,16) : ''}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            <input type="datetime-local" id="edit-due" value="${getShanghaiInputValue(task.dueDate)}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">提醒时间</label>
-                            <input type="datetime-local" id="edit-reminder" value="${task.reminderTime ? task.reminderTime.slice(0,16) : ''}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            <input type="datetime-local" id="edit-reminder" value="${getShanghaiInputValue(task.reminderTime)}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                         </div>
                     </div>
 
@@ -666,9 +690,9 @@ window.saveTaskEdit = (id) => {
         title, description: desc, status, category,
         urgency, importance,
         isFrog, actionType,
-        startDate: start ? new Date(start).toISOString() : null,
-        dueDate: due ? new Date(due).toISOString() : null,
-        reminderTime: reminder ? new Date(reminder).toISOString() : null,
+        startDate: start ? new Date(start + '+08:00').toISOString() : null,
+        dueDate: due ? new Date(due + '+08:00').toISOString() : null,
+        reminderTime: reminder ? new Date(reminder + '+08:00').toISOString() : null,
         estimatedMinutes: estMin ? parseInt(estMin) : null,
         actualMinutes: actMin ? parseInt(actMin) : null,
         tags,
@@ -710,12 +734,7 @@ window.editTaskField = (taskId, field, event) => {
             </select>
         `;
     } else if (field.includes('Date') || field.includes('Time') || field === 'completedAt') {
-        let dateVal = '';
-        if (currentVal) {
-            const d = new Date(currentVal);
-            const offset = d.getTimezoneOffset() * 60000;
-            dateVal = new Date(d.getTime() - offset).toISOString().slice(0, 16);
-        }
+        let dateVal = getShanghaiInputValue(currentVal);
         inputHtml = `<input type="datetime-local" class="text-xs border rounded p-1 w-full" value="${dateVal}" onblur="window.saveTaskField('${taskId}', '${field}', this.value)" onkeydown="if(event.key==='Enter') this.blur()" onclick="event.stopPropagation()">`;
     }
     
@@ -742,7 +761,7 @@ window.saveTaskField = (taskId, field, value) => {
         } else {
              let newVal = null;
              if (value) {
-                 newVal = new Date(value).toISOString();
+                 newVal = new Date(value + '+08:00').toISOString();
              }
              if (task[field] !== newVal) {
                  task[field] = newVal;
@@ -1586,12 +1605,22 @@ document.addEventListener('click', (e) => {
             createdPopover.classList.add('hidden');
         }
     }
+
+    // 截止时间下拉
+    const deadlinePopover = document.getElementById('deadline-filter-popover');
+    if (deadlinePopover && !deadlinePopover.classList.contains('hidden')) {
+        if (!e.target.closest('#deadline-filter-popover') && !e.target.closest('.group\\/deadline button')) {
+            deadlinePopover.classList.add('hidden');
+        }
+    }
 });
 
 // 筛选：日期范围
 window.updateDateRangeFilter = () => {
     const start = document.getElementById('filter-date-start').value;
     const end = document.getElementById('filter-date-end').value;
+    const label = document.getElementById('deadline-filter-label');
+    const popover = document.getElementById('deadline-filter-popover');
     
     if (start && end) {
         if (new Date(start) > new Date(end)) {
@@ -1599,11 +1628,20 @@ window.updateDateRangeFilter = () => {
             return;
         }
         store.dateRangeFilter = { start, end };
+        if (label) {
+            label.textContent = `${start.slice(5)}~${end.slice(5)}`;
+            label.classList.add('text-blue-600', 'font-medium');
+        }
     } else {
         store.dateRangeFilter = null;
+        if (label) {
+            label.textContent = '不限时间';
+            label.classList.remove('text-blue-600', 'font-medium');
+        }
     }
     // 重置分页
     store.pagination.list.page = 1;
+    if (popover) popover.classList.add('hidden');
     updateUI();
 };
 
@@ -1611,8 +1649,17 @@ window.updateDateRangeFilter = () => {
 window.clearDateFilter = () => {
     document.getElementById('filter-date-start').value = '';
     document.getElementById('filter-date-end').value = '';
+    const label = document.getElementById('deadline-filter-label');
+    const popover = document.getElementById('deadline-filter-popover');
+
     store.dateRangeFilter = null;
+    if (label) {
+        label.textContent = '不限时间';
+        label.classList.remove('text-blue-600', 'font-medium');
+    }
+
     store.pagination.list.page = 1;
+    if (popover) popover.classList.add('hidden');
     updateUI();
 };
 
