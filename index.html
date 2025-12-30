@@ -77,8 +77,8 @@
         <!-- 主内容区 -->
         <main class="flex-1 flex flex-col overflow-hidden relative">
                         <!-- 顶部输入区 -->
-            <div class="bg-white border-b border-gray-200 p-4">
-                <div class="max-w-6xl mx-auto">
+            <div class="bg-white border-b border-gray-200 px-6 py-4">
+                <div class="w-full">
                     <div class="relative">
                         <textarea 
                             id="task-input" 
@@ -112,7 +112,7 @@
             
             <!-- 视图切换与内容区 -->
             <div class="flex-1 overflow-hidden flex flex-col">
-                <div class="px-6 pt-4 pb-2 flex justify-between items-center max-w-6xl mx-auto w-full">
+                <div class="px-6 pt-4 pb-2 flex justify-between items-center w-full">
                     <div class="flex items-center gap-3">
                         <h2 id="view-title" class="text-lg font-semibold text-gray-800">今日焦点</h2>
                         <!-- 列表视图下的全选框 -->
@@ -142,7 +142,7 @@
                 </div>
 
                 <div class="flex-1 overflow-auto p-6" id="main-scroll-area">
-                    <div class="max-w-6xl mx-auto h-full">
+                    <div class="w-full h-full">
                         <div id="view-container" class="h-full pb-20"></div>
                         
                         <div id="empty-state" class="hidden text-center py-12">
