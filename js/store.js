@@ -168,8 +168,8 @@ export const store = {
             this.config = { ...this.config, ...savedConfig };
             if (!this.config.nextShortId) this.config.nextShortId = 1;
             
-            // 强制更新 Prompt 到最新版本 (包含负数ID规则)
-            if (!this.config.prompt.includes('负数 ID')) {
+            // 强制更新 Prompt 到最新版本 (包含负数ID规则 和 is_frog)
+            if (!this.config.prompt.includes('负数 ID') || !this.config.prompt.includes('is_frog')) {
                 this.config.prompt = DEFAULT_PROMPT;
             }
         }
