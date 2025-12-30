@@ -24,6 +24,8 @@ const DEFAULT_PROMPT = `你是一个专业的智能任务管理助手。
 - **title**: 简短精炼。
 - **priority**: urgent, high, medium, low (基于四象限判断)。
 - **category**: 工作, 生活, 学习, 其他。
+- **is_frog**: boolean (true/false). 是否为"青蛙任务" (最困难/最重要的任务).
+- **action_type**: 'NEXT', 'SOMEDAY', 'WAITING'. 默认 NEXT.
 
 # Output Format
 只返回 JSON 数组，不要 Markdown。
@@ -33,6 +35,8 @@ const DEFAULT_PROMPT = `你是一个专业的智能任务管理助手。
   {
     "shortId": -1,  // 新任务用负数
     "title": "新任务A",
+    "is_frog": true,
+    "action_type": "NEXT",
     "parentShortId": 12, // 归属于已有的 #12 任务
     "relations": []
   },
@@ -68,6 +72,9 @@ export const store = {
     config: { ...DEFAULT_CONFIG },
     viewFilter: 'today',
     categoryFilter: null,
+    frogFilter: false, // 新增：青蛙筛选
+    actionTypeFilter: 'all', // 新增：行动项筛选
+    dateRangeFilter: null, // 新增：日期范围筛选 { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }
     currentViewMode: 'list',
     selectedTaskIds: new Set(),
     sortState: [{ field: 'priority', direction: 'desc' }],
@@ -185,6 +192,8 @@ export const store = {
             status: taskData.status || 'pending',
             urgency: taskData.urgency || 2,
             importance: taskData.importance || 2,
+            isFrog: taskData.isFrog !== undefined ? taskData.isFrog : false,
+            actionType: taskData.actionType || 'NEXT',
             tags: taskData.tags || [],
             relations: taskData.relations || [],
             collapsed: false,

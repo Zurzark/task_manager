@@ -141,6 +141,51 @@
                     </div>
                 </div>
 
+                <!-- 新增：筛选工具栏 (调整位置) -->
+                <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-4 bg-gray-50/50 flex-wrap">
+                    <!-- 青蛙筛选 -->
+                    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none hover:text-green-700 transition">
+                        <input type="checkbox" id="filter-frog" class="rounded text-green-600 focus:ring-green-500" onchange="window.toggleFrogFilter(this.checked)">
+                        <span class="font-medium">只看青蛙 🐸</span>
+                    </label>
+                    
+                    <div class="h-4 w-px bg-gray-300 mx-2"></div>
+
+                    <!-- 行动项筛选 -->
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="text-gray-500">行动:</span>
+                        <select id="filter-action" class="bg-transparent hover:bg-white border-transparent hover:border-gray-200 rounded text-gray-700 font-medium focus:ring-0 cursor-pointer text-sm py-1 pl-2 pr-8 transition" onchange="window.updateActionTypeFilter(this.value)">
+                            <option value="all">全部</option>
+                            <option value="NEXT">下一步</option>
+                            <option value="WAITING">等待</option>
+                            <option value="SOMEDAY">将来</option>
+                        </select>
+                    </div>
+
+                    <!-- 状态筛选 (新增) -->
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="text-gray-500">状态:</span>
+                        <select id="filter-status" class="bg-transparent hover:bg-white border-transparent hover:border-gray-200 rounded text-gray-700 font-medium focus:ring-0 cursor-pointer text-sm py-1 pl-2 pr-8 transition" onchange="window.updateStatusFilter(this.value)">
+                            <option value="">全部</option>
+                            <option value="pending">待开始</option>
+                            <option value="active">进行中</option>
+                            <option value="done">已完成</option>
+                            <option value="cancelled">已取消</option>
+                        </select>
+                    </div>
+
+                    <div class="h-4 w-px bg-gray-300 mx-2"></div>
+
+                    <!-- 时间范围筛选 -->
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="text-gray-500">截止:</span>
+                        <input type="date" id="filter-date-start" class="border border-gray-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" onchange="window.updateDateRangeFilter()">
+                        <span class="text-gray-400">-</span>
+                        <input type="date" id="filter-date-end" class="border border-gray-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" onchange="window.updateDateRangeFilter()">
+                        <button onclick="window.clearDateFilter()" class="text-gray-400 hover:text-red-500 ml-1 transition" title="清除日期"><i class="ri-close-circle-fill"></i></button>
+                    </div>
+                </div>
+
                 <div class="flex-1 overflow-auto p-6" id="main-scroll-area">
                     <div class="w-full h-full">
                         <div id="view-container" class="h-full pb-20"></div>

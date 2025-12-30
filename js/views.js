@@ -1,7 +1,18 @@
 import { store } from './store.js';
 import { escapeHtml } from './utils.js';
 
-// 辅助：获取优先级配置
+// 辅助：获取优先级配置 (Badge 模式)
+function getPriorityBadgeConfig(priority) {
+    const config = {
+        urgent: { label: '重要且紧急', class: 'bg-red-100 text-red-700 border-red-200' },
+        high: { label: '重要不紧急', class: 'bg-yellow-100 text-yellow-700 border-yellow-200' }, // Orange/Yellow
+        medium: { label: '不重要紧急', class: 'bg-blue-100 text-blue-700 border-blue-200' },
+        low: { label: '不重要不紧急', class: 'bg-green-100 text-green-700 border-green-200' }
+    };
+    return config[priority] || config.medium;
+}
+
+// 辅助：获取优先级配置 (Icon 模式，保留用于 Kanban 等)
 function getPriorityConfig(priority) {
     const config = {
         urgent: { label: '紧急', color: 'bg-red-500', icon: 'ri-alarm-warning-fill', text: 'text-red-600', bg: 'bg-red-50' },
@@ -24,7 +35,7 @@ function getStatusConfig(status) {
 }
 
 function getFilteredTasks() {
-    const { tasks, viewFilter, categoryFilter, sortState, statusFilter } = store;
+    const { tasks, viewFilter, categoryFilter, sortState, statusFilter, frogFilter, actionTypeFilter, dateRangeFilter } = store;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -37,25 +48,40 @@ function getFilteredTasks() {
         filtered = filtered.filter(t => t.status === 'done');
     } else if (viewFilter === 'all') {
         // all view shows all tasks (including done)
-        // No status filter applied
     }
     
-    // 2. 分类筛选 (categoryFilter) - 与视图筛选叠加
+    // 2. 分类筛选
     if (categoryFilter) {
         filtered = filtered.filter(t => t.category === categoryFilter);
     }
     
-    // 2. 状态筛选 (表头筛选)
+    // 3. 状态筛选 (表头)
     if (statusFilter) {
-        // If user explicitly filters by 'done' in 'all' view, we might get empty result if 'all' view excludes 'done'.
-        // This is a conflict. 
-        // If statusFilter is set, it should probably override the implicit "not done" of the view?
-        // Or statusFilter works within the current view results.
-        // Let's assume statusFilter refines current view.
         filtered = filtered.filter(t => t.status === statusFilter);
     }
+
+    // 4. 新增：青蛙筛选
+    if (frogFilter) {
+        filtered = filtered.filter(t => t.isFrog);
+    }
+
+    // 5. 新增：行动项筛选
+    if (actionTypeFilter && actionTypeFilter !== 'all') {
+        filtered = filtered.filter(t => t.actionType === actionTypeFilter);
+    }
+
+    // 6. 新增：日期范围筛选 (基于截止时间)
+    if (dateRangeFilter && dateRangeFilter.start && dateRangeFilter.end) {
+        const start = new Date(dateRangeFilter.start); start.setHours(0,0,0,0);
+        const end = new Date(dateRangeFilter.end); end.setHours(23,59,59,999);
+        filtered = filtered.filter(t => {
+            if (!t.dueDate) return false;
+            const d = new Date(t.dueDate);
+            return d >= start && d <= end;
+        });
+    }
     
-    // 3. 多字段排序
+    // 7. 多字段排序
     if (sortState && sortState.length > 0) {
         filtered.sort((a, b) => {
             for (const sort of sortState) {
@@ -71,13 +97,9 @@ function getFilteredTasks() {
                     // Time fields
                     const timeA = a[field] ? new Date(a[field]).getTime() : 0;
                     const timeB = b[field] ? new Date(b[field]).getTime() : 0;
-                    // For times: earlier is smaller. 
-                    // If we want "Latest first" (desc), result should be A - B?
-                    // sort(a,b): negative if a < b.
-                    // timeA - timeB: if A is earlier (smaller), result negative -> A comes first (Ascending).
                     if (timeA === 0 && timeB === 0) result = 0;
-                    else if (timeA === 0) result = 1; // Empty last
-                    else if (timeB === 0) result = -1; // Empty last
+                    else if (timeA === 0) result = 1; 
+                    else if (timeB === 0) result = -1; 
                     else result = timeA - timeB;
                 }
                 
@@ -88,12 +110,15 @@ function getFilteredTasks() {
             return 0;
         });
     } else {
-        // Fallback default sort if empty
+        // Fallback default sort
          const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
          filtered.sort((a, b) => {
+             // First by Frog
+             if (a.isFrog !== b.isFrog) return a.isFrog ? -1 : 1;
+             
              const wa = priorityWeight[a.priority] || 2;
              const wb = priorityWeight[b.priority] || 2;
-             if (wa !== wb) return wb - wa; // High priority first
+             if (wa !== wb) return wb - wa; 
              return 0;
          });
     }
@@ -124,24 +149,11 @@ function renderSortHeader(field, label) {
     `;
 }
 
-// 辅助：渲染状态表头
+// 辅助：渲染状态表头 (仅标题)
 function renderStatusHeader() {
-    const isActive = !!store.statusFilter;
-    const iconClass = isActive ? 'ri-filter-3-fill text-blue-600' : 'ri-filter-3-line text-gray-400';
-    const label = store.statusFilter ? getStatusConfig(store.statusFilter).label : '状态';
-    
     return `
-        <th class="text-center cursor-pointer hover:bg-gray-100 transition relative" onclick="event.stopPropagation(); window.toggleStatusFilter(event)">
-            <div class="flex items-center justify-center gap-1">
-                ${label} <i class="${iconClass} text-xs"></i>
-            </div>
-            <div id="status-filter-dropdown" class="hidden absolute right-0 top-full mt-1 w-32 bg-white shadow-lg rounded-lg border z-50 text-left py-1" onclick="event.stopPropagation()">
-                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${!store.statusFilter ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter(null)">全部</div>
-                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'pending' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('pending')">待开始</div>
-                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'active' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('active')">进行中</div>
-                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'done' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('done')">已完成</div>
-                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer ${store.statusFilter === 'cancelled' ? 'text-blue-600 font-bold' : ''}" onclick="window.applyStatusFilter('cancelled')">已取消</div>
-            </div>
+        <th class="text-center select-none text-gray-500 font-normal">
+            状态
         </th>
     `;
 }
@@ -193,6 +205,16 @@ function formatDateSimple(dateStr) {
     return `<span class="text-gray-500 text-xs flex items-center gap-1">${dateStrFormatted} ${timeStr}</span>`;
 }
 
+// 辅助：获取行动项配置
+function getActionTypeConfig(type) {
+    const map = {
+        'NEXT': { label: '下一步', class: 'bg-blue-100 text-blue-700 border-blue-200' },
+        'WAITING': { label: '等待', class: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+        'SOMEDAY': { label: '将来', class: 'bg-gray-100 text-gray-600 border-gray-200' }
+    };
+    return map[type] || map['NEXT'];
+}
+
 // 递归生成表格行
 function renderTableRows(nodes, level = 0, parentIsLast = true) {
     let html = '';
@@ -200,9 +222,12 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
     nodes.forEach((task, index) => {
         const isLastChild = index === nodes.length - 1;
         const isSelected = store.selectedTaskIds.has(task.id);
-        const pConfig = getPriorityConfig(task.priority);
+        const pBadgeConfig = getPriorityBadgeConfig(task.priority);
+        const pConfig = getPriorityConfig(task.priority); // Keep for Kanban
         const sConfig = getStatusConfig(task.status);
+        const aConfig = getActionTypeConfig(task.actionType || 'NEXT');
         const isDone = task.status === 'done';
+        const isFrog = task.isFrog;
         
         // 缩进计算 (每层 24px)
         const indentStyle = `padding-left: ${level * 24}px`;
@@ -222,7 +247,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
             : `<span class="w-4 mr-1 inline-block"></span>`;
 
         html += `
-            <tr class="group transition-colors ${isSelected ? 'bg-blue-50' : ''}">
+            <tr class="group transition-colors ${isSelected ? 'bg-blue-50' : ''} ${isFrog ? 'bg-red-50/30' : ''}">
                 <!-- 1. 选择列 -->
                 <td class="w-10 text-center">
                     <input type="checkbox" 
@@ -231,16 +256,48 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                         class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-1">
                 </td>
 
-                <!-- 2. 优先级 -->
-                <td class="w-20">
-                    <div class="flex items-center gap-2" title="优先级: ${pConfig.label}">
-                        <div class="w-6 h-6 rounded flex items-center justify-center ${pConfig.bg} ${pConfig.text}">
-                            <i class="${pConfig.icon}"></i>
+                <!-- 2. 青蛙列 (新增) -->
+                <td class="w-12 text-center">
+                    <button onclick="event.stopPropagation(); window.toggleFrog('${task.id}')" 
+                        class="text-lg transition hover:scale-110 ${isFrog ? 'opacity-100' : 'opacity-20 grayscale hover:opacity-50'}">
+                        🐸
+                    </button>
+                </td>
+
+                <!-- 3. 优先级 (Badge) -->
+                <td class="w-24 text-center">
+                     <div class="relative group/priority flex justify-center">
+                        <span onclick="event.stopPropagation()" 
+                             class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${pBadgeConfig.class}">
+                             ${pBadgeConfig.label}
+                        </span>
+                        <!-- 优先级下拉菜单 -->
+                        <div class="hidden group-hover/priority:block absolute left-0 top-full mt-1 w-28 bg-white shadow-lg rounded border z-50 text-left py-1">
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updatePriority('${task.id}', 'urgent')">重要且紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-orange-600" onclick="window.updatePriority('${task.id}', 'high')">重要不紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updatePriority('${task.id}', 'medium')">不重要紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updatePriority('${task.id}', 'low')">不重要不紧急</div>
                         </div>
                     </div>
                 </td>
 
-                <!-- 3. 任务详情 (核心列) -->
+                <!-- 4. 行动项 (新增) -->
+                <td class="w-24 text-center">
+                    <div class="relative group/action">
+                        <span onclick="event.stopPropagation()" 
+                            class="px-2 py-1 rounded text-xs font-medium border cursor-pointer select-none ${aConfig.class}">
+                            ${aConfig.label}
+                        </span>
+                        <!-- 简易下拉菜单 -->
+                        <div class="hidden group-hover/action:block absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-yellow-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
+                        </div>
+                    </div>
+                </td>
+
+                <!-- 5. 任务详情 (核心列) -->
                 <td class="min-w-[300px]">
                     <div style="${indentStyle}" class="relative">
                         ${treeConnector}
@@ -249,7 +306,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                             <div class="flex-1 cursor-pointer" onclick="window.triggerEdit('${task.id}')">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="text-xs font-mono text-gray-400">#${task.shortId}</span>
-                                    <span class="font-medium text-gray-900 ${isDone ? 'line-through text-gray-400' : ''}">${escapeHtml(task.title)}</span>
+                                    <span class="font-medium text-gray-900 ${isDone ? 'line-through text-gray-400' : ''} ${isFrog ? 'font-bold text-gray-800' : ''}">${escapeHtml(task.title)}</span>
                                     ${task.category ? `<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">#${escapeHtml(task.category)}</span>` : ''}
                                     ${(task.tags || []).map(tag => `<span class="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">@${escapeHtml(tag)}</span>`).join('')}
                                 </div>
@@ -268,43 +325,31 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </div>
                 </td>
 
-                <!-- 新增：开始时间 (截止时间左侧) -->
-                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'startDate', event)">
-                    ${formatDateSimple(task.startDate)}
+                <!-- 6. 截止时间 (含开始时间) -->
+                <td class="w-40 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'dueDate', event)">
+                    <div class="flex flex-col items-start justify-center h-full">
+                        ${task.startDate ? `<span class="text-[10px] text-gray-400 scale-90 origin-left">🏁 ${formatDateSimple(task.startDate).replace(/<[^>]+>/g, '')}</span>` : ''}
+                        ${formatDueDate(task.dueDate)}
+                    </div>
                 </td>
 
-                <!-- 4. 截止时间 -->
-                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'dueDate', event)">
-                    ${formatDueDate(task.dueDate)}
-                </td>
-
-                <!-- 新增：提醒时间 (截止时间右侧) -->
-                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'reminderTime', event)">
-                    ${formatDateSimple(task.reminderTime)}
-                </td>
-
-                <!-- 新增：完成时间 (截止时间右侧) -->
-                <td class="w-32 whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'completedAt', event)">
-                    ${formatDateSimple(task.completedAt)}
-                </td>
-
-                <!-- 5. 状态 -->
-                <td class="w-28 text-center whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'status', event)">
+                <!-- 7. 状态 -->
+                <td class="w-24 text-center whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'status', event)">
                     <span class="status-badge ${sConfig.class}">
                         ${sConfig.label}
                     </span>
                 </td>
 
-                <!-- 6. 操作 -->
-                <td class="w-32 text-center">
-                    <div class="flex items-center justify-center gap-3">
-                        <button onclick="event.stopPropagation(); window.toggleTaskComplete('${task.id}')" 
-                            class="text-xs font-medium text-blue-600 hover:text-blue-800 transition">
-                            ${isDone ? '重做' : '完成'}
+                <!-- 8. 操作 -->
+                <td class="w-24 text-center">
+                    <div class="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                         <button onclick="event.stopPropagation(); window.toggleTaskComplete('${task.id}')" 
+                            class="p-1 rounded hover:bg-gray-100 text-blue-600 transition" title="${isDone ? '重做' : '完成'}">
+                            <i class="${isDone ? 'ri-refresh-line' : 'ri-check-line'} text-lg"></i>
                         </button>
                         <button onclick="event.stopPropagation(); window.deleteTaskAndClose('${task.id}')" 
-                            class="text-xs font-medium text-red-500 hover:text-red-700 transition">
-                            删除
+                            class="p-1 rounded hover:bg-gray-100 text-red-500 transition" title="删除">
+                            <i class="ri-delete-bin-line text-lg"></i>
                         </button>
                     </div>
                 </td>
@@ -335,16 +380,19 @@ export const render = {
                                     onchange="document.getElementById('select-all-checkbox').click()"
                                     class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                             </th>
-                            ${renderSortHeader('priority', '优先级')}
+                            <th class="w-12 text-center">🐸</th>
+                            <th class="w-24 text-center cursor-pointer select-none" onclick="window.toggleSort('priority')">
+                                <div class="flex items-center justify-center gap-1 text-gray-500 font-normal">
+                                    优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}
+                                </div>
+                            </th>
+                            <th class="w-24 text-center text-gray-500 font-normal">行动</th>
                             <th>任务详情</th>
                             
-                            ${renderSortHeader('startDate', '开始时间')}
                             ${renderSortHeader('dueDate', '截止时间')}
-                            ${renderSortHeader('reminderTime', '提醒时间')}
-                            ${renderSortHeader('completedAt', '完成时间')}
-
+                            
                             ${renderStatusHeader()}
-                            <th class="text-center">操作</th>
+                            <th class="text-center w-24">操作</th>
                         </tr>
                     </thead>
                     <tbody>
