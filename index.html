@@ -162,16 +162,41 @@
                         </select>
                     </div>
 
-                    <!-- 状态筛选 (新增) -->
-                    <div class="flex items-center gap-2 text-sm">
-                        <span class="text-gray-500">状态:</span>
-                        <select id="filter-status" class="bg-transparent hover:bg-white border-transparent hover:border-gray-200 rounded text-gray-700 font-medium focus:ring-0 cursor-pointer text-sm py-1 pl-2 pr-8 transition" onchange="window.updateStatusFilter(this.value)">
-                            <option value="">全部</option>
-                            <option value="pending">待开始</option>
-                            <option value="active">进行中</option>
-                            <option value="done">已完成</option>
-                            <option value="cancelled">已取消</option>
-                        </select>
+                    <!-- 状态筛选 (多选) -->
+                    <div class="relative inline-block text-left" id="status-filter-container">
+                        <div class="flex items-center gap-2 text-sm">
+                            <span class="text-gray-500">状态:</span>
+                            <button type="button" onclick="window.toggleStatusDropdown()" 
+                                class="bg-transparent hover:bg-white border border-transparent hover:border-gray-200 rounded text-gray-700 font-medium focus:ring-0 cursor-pointer text-sm py-1 px-2 transition flex items-center gap-1">
+                                <span id="status-filter-label">全部</span>
+                                <i class="ri-arrow-down-s-line text-gray-400"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- 下拉菜单 -->
+                        <div id="status-filter-menu" class="hidden absolute left-8 top-full mt-1 w-32 bg-white shadow-lg rounded-lg border border-gray-100 z-50 py-1">
+                            <label class="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" value="all" class="rounded text-blue-500 focus:ring-blue-500 mr-2" onchange="window.updateStatusFilter(this.value, this.checked)">
+                                <span class="text-sm">全部</span>
+                            </label>
+                            <div class="h-px bg-gray-100 my-1"></div>
+                            <label class="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" value="pending" class="rounded text-blue-500 focus:ring-blue-500 mr-2" onchange="window.updateStatusFilter(this.value, this.checked)">
+                                <span class="text-sm">待开始</span>
+                            </label>
+                            <label class="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" value="active" class="rounded text-blue-500 focus:ring-blue-500 mr-2" onchange="window.updateStatusFilter(this.value, this.checked)">
+                                <span class="text-sm">进行中</span>
+                            </label>
+                            <label class="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" value="done" class="rounded text-blue-500 focus:ring-blue-500 mr-2" onchange="window.updateStatusFilter(this.value, this.checked)">
+                                <span class="text-sm">已完成</span>
+                            </label>
+                            <label class="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" value="cancelled" class="rounded text-blue-500 focus:ring-blue-500 mr-2" onchange="window.updateStatusFilter(this.value, this.checked)">
+                                <span class="text-sm">已取消</span>
+                            </label>
+                        </div>
                     </div>
 
                     <div class="h-4 w-px bg-gray-300 mx-2"></div>

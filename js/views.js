@@ -55,9 +55,9 @@ function getFilteredTasks() {
         filtered = filtered.filter(t => t.category === categoryFilter);
     }
     
-    // 3. 状态筛选 (表头)
-    if (statusFilter) {
-        filtered = filtered.filter(t => t.status === statusFilter);
+    // 3. 状态筛选 (多选)
+    if (statusFilter && statusFilter.length > 0) {
+        filtered = filtered.filter(t => statusFilter.includes(t.status));
     }
 
     // 4. 新增：青蛙筛选
@@ -368,40 +368,67 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
 export const render = {
     list() {
         const tasks = getFilteredTasks();
-        const treeRoots = buildTaskTree(tasks);
+        
+        // 分页逻辑
+        const { page, pageSize } = store.pagination.list;
+        const totalItems = tasks.length;
+        const totalPages = Math.ceil(totalItems / pageSize) || 1;
+        const currentPage = Math.min(page, totalPages);
+        
+        const startIdx = (currentPage - 1) * pageSize;
+        const endIdx = startIdx + pageSize;
+        const pagedTasks = tasks.slice(startIdx, endIdx);
+        
+        const treeRoots = buildTaskTree(pagedTasks); // 注意：分页是在树构建之前还是之后？通常分页是平铺的。
+        // 如果要保持树形结构，分页会很复杂（可能切断父子）。
+        // 这里假设列表视图主要展示顶层或者平铺。
+        // 如果是树形表格，通常分页是针对"根节点"。
+        // 修正：先构建树，再对根节点分页
+        const fullTreeRoots = buildTaskTree(tasks);
+        const pagedTreeRoots = fullTreeRoots.slice(startIdx, endIdx);
         
         return `
-            <div class="task-table-container">
-                <table class="w-full task-table border-collapse">
-                    <thead>
-                        <tr>
-                            <th class="w-10 text-center">
-                                <input type="checkbox" id="select-all-checkbox-table" 
-                                    onchange="document.getElementById('select-all-checkbox').click()"
-                                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
-                            </th>
-                            <th class="w-12 text-center">🐸</th>
-                            <th class="w-24 text-center cursor-pointer select-none" onclick="window.toggleSort('priority')">
-                                <div class="flex items-center justify-center gap-1 text-gray-500 font-normal">
-                                    优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}
-                                </div>
-                            </th>
-                            <th class="w-24 text-center text-gray-500 font-normal">行动</th>
-                            <th>任务详情</th>
-                            
-                            ${renderSortHeader('dueDate', '截止时间')}
-                            
-                            ${renderStatusHeader()}
-                            <th class="text-center w-24">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${tasks.length === 0 ? '<tr><td colspan="10" class="text-center text-gray-400 py-8">列表为空</td></tr>' : renderTableRows(treeRoots)}
-                    </tbody>
-                </table>
-            </div>
-            <div class="text-xs text-gray-400 mt-2 text-right px-2">
-                共 ${tasks.length} 个任务
+            <div class="task-table-container flex-1 flex flex-col">
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full task-table border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="w-10 text-center">
+                                    <input type="checkbox" id="select-all-checkbox-table" 
+                                        onchange="document.getElementById('select-all-checkbox').click()"
+                                        class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                </th>
+                                <th class="w-12 text-center">🐸</th>
+                                <th class="w-24 text-center cursor-pointer select-none" onclick="window.toggleSort('priority')">
+                                    <div class="flex items-center justify-center gap-1 text-gray-500 font-normal">
+                                        优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}
+                                    </div>
+                                </th>
+                                <th class="w-24 text-center text-gray-500 font-normal">行动</th>
+                                <th>任务详情</th>
+                                
+                                ${renderSortHeader('dueDate', '截止时间')}
+                                
+                                ${renderStatusHeader()}
+                                <th class="text-center w-24">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pagedTreeRoots.length === 0 ? '<tr><td colspan="10" class="text-center text-gray-400 py-8">列表为空</td></tr>' : renderTableRows(pagedTreeRoots)}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 分页控件 -->
+                <div class="flex justify-between items-center px-4 py-3 border-t bg-gray-50">
+                    <div class="text-xs text-gray-500">
+                        共 ${totalItems} 项，第 ${currentPage}/${totalPages} 页
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="window.changeListPage(-1)" ${currentPage === 1 ? 'disabled' : ''} class="px-2 py-1 border rounded text-xs hover:bg-white disabled:opacity-50">上一页</button>
+                        <button onclick="window.changeListPage(1)" ${currentPage === totalPages ? 'disabled' : ''} class="px-2 py-1 border rounded text-xs hover:bg-white disabled:opacity-50">下一页</button>
+                    </div>
+                </div>
             </div>
         `;
     },
@@ -451,28 +478,46 @@ export const render = {
         const q3 = tasks.filter(t => t.priority === 'medium');
         const q4 = tasks.filter(t => t.priority === 'low');
 
-        const renderCell = (title, list, colorClass) => `
-            <div class="quadrant-cell ${colorClass}">
+        const renderCell = (title, list, colorClass, priorityKey) => {
+            const { page, pageSize } = store.pagination.quadrant[priorityKey];
+            const totalItems = list.length;
+            const totalPages = Math.ceil(totalItems / pageSize) || 1;
+            const currentPage = Math.min(page, totalPages);
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pagedList = list.slice(start, end);
+
+            return `
+            <div class="quadrant-cell ${colorClass} flex flex-col">
                 <h3 class="font-bold mb-2 text-gray-700 border-b pb-2 flex justify-between">
                     ${title} <span class="text-xs bg-white px-2 rounded border">${list.length}</span>
                 </h3>
                 <div class="overflow-y-auto flex-1 pr-1 space-y-2">
-                    ${list.map(t => `
+                    ${pagedList.map(t => `
                         <div class="bg-white p-2 rounded border shadow-sm cursor-pointer hover:bg-gray-50" onclick="window.triggerEdit('${t.id}')">
                             <div class="text-sm font-medium">${escapeHtml(t.title)}</div>
                             ${t.dueDate ? `<div class="text-xs text-gray-400 mt-1"><i class="ri-time-line"></i> ${new Date(t.dueDate).toLocaleDateString()}</div>` : ''}
                         </div>
                     `).join('')}
                 </div>
+                <!-- Mini 分页 -->
+                <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-200/50">
+                    <span class="text-[10px] text-gray-400">${currentPage}/${totalPages}</span>
+                    <div class="flex gap-1">
+                        <button onclick="window.changeQuadrantPage('${priorityKey}', -1)" ${currentPage===1?'disabled':''} class="px-1.5 py-0.5 bg-white border rounded text-[10px] hover:bg-gray-50 disabled:opacity-50"><i class="ri-arrow-left-s-line"></i></button>
+                        <button onclick="window.changeQuadrantPage('${priorityKey}', 1)" ${currentPage===totalPages?'disabled':''} class="px-1.5 py-0.5 bg-white border rounded text-[10px] hover:bg-gray-50 disabled:opacity-50"><i class="ri-arrow-right-s-line"></i></button>
+                    </div>
+                </div>
             </div>
-        `;
+            `;
+        };
 
         return `
             <div class="quadrant-grid pb-4">
-                ${renderCell('Q1: 重要且紧急 (马上做)', q1, 'border-red-200 bg-red-50')}
-                ${renderCell('Q2: 重要不紧急 (计划做)', q2, 'border-orange-200 bg-orange-50')}
-                ${renderCell('Q3: 紧急不重要 (授权做)', q3, 'border-yellow-200 bg-yellow-50')}
-                ${renderCell('Q4: 不重要不紧急 (稍后做)', q4, 'border-green-200 bg-green-50')}
+                ${renderCell('Q1: 重要且紧急 (马上做)', q1, 'border-red-200 bg-red-50', 'urgent')}
+                ${renderCell('Q2: 重要不紧急 (计划做)', q2, 'border-orange-200 bg-orange-50', 'high')}
+                ${renderCell('Q3: 紧急不重要 (授权做)', q3, 'border-yellow-200 bg-yellow-50', 'medium')}
+                ${renderCell('Q4: 不重要不紧急 (稍后做)', q4, 'border-green-200 bg-green-50', 'low')}
             </div>
         `;
     },

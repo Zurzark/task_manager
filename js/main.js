@@ -88,6 +88,18 @@ function updateUI() {
         container.innerHTML = render[view]();
     }
 
+    // 修复：更新视图切换按钮状态
+    document.querySelectorAll('.view-switcher').forEach(btn => {
+        const target = btn.dataset.target;
+        if (target === view) {
+            btn.classList.remove('text-gray-500', 'hover:text-gray-800');
+            btn.classList.add('bg-white', 'shadow-sm', 'text-gray-800', 'font-medium');
+        } else {
+            btn.classList.add('text-gray-500', 'hover:text-gray-800');
+            btn.classList.remove('bg-white', 'shadow-sm', 'text-gray-800', 'font-medium');
+        }
+    });
+
     // 更新标题
     const viewTitles = {
         'today': '今日焦点',
@@ -622,11 +634,85 @@ window.updateActionTypeFilter = (value) => {
     updateUI();
 };
 
-// 筛选：状态
-window.updateStatusFilter = (value) => {
-    store.statusFilter = value || null; // 确保空字符串转为 null
+// 筛选：状态 (多选逻辑)
+window.toggleStatusDropdown = () => {
+    const menu = document.getElementById('status-filter-menu');
+    menu.classList.toggle('hidden');
+    
+    // 初始化勾选状态
+    const checkboxes = menu.querySelectorAll('input[type="checkbox"]');
+    const current = store.statusFilter; // array
+    
+    checkboxes.forEach(cb => {
+        if (cb.value === 'all') {
+            cb.checked = current.length === 0;
+        } else {
+            cb.checked = current.includes(cb.value);
+        }
+    });
+};
+
+window.updateStatusFilter = (value, checked) => {
+    let current = [...store.statusFilter];
+    
+    if (value === 'all') {
+        if (checked) {
+            current = []; // Empty implies all
+        } else {
+            // Unchecking 'all' does nothing or stays empty? 
+            // Usually if you uncheck 'all', maybe it means 'none', but filtering 'none' is empty list.
+            // Let's assume unchecking 'all' just keeps it empty (all).
+            // Or better: clicking 'all' clears other filters.
+            current = [];
+        }
+    } else {
+        if (checked) {
+            if (!current.includes(value)) current.push(value);
+        } else {
+            current = current.filter(v => v !== value);
+        }
+    }
+    
+    store.statusFilter = current;
+    
+    // UI Update for label
+    const label = document.getElementById('status-filter-label');
+    if (current.length === 0) {
+        label.textContent = '全部';
+    } else {
+        const map = { pending: '待开始', active: '进行中', done: '已完成', cancelled: '已取消' };
+        if (current.length === 1) {
+            label.textContent = map[current[0]];
+        } else {
+            label.textContent = `已选 ${current.length} 项`;
+        }
+    }
+    
+    // Refresh checkboxes visual if needed (optional, since onchange handles it)
+    // But if 'all' was clicked, we need to uncheck others
+    if (value === 'all' && checked) {
+        const menu = document.getElementById('status-filter-menu');
+        menu.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            if (cb.value !== 'all') cb.checked = false;
+        });
+    } else if (value !== 'all' && checked) {
+        // Uncheck 'all' if specific selected
+        const menu = document.getElementById('status-filter-menu');
+        const allCb = menu.querySelector('input[value="all"]');
+        if (allCb) allCb.checked = false;
+    }
+    
     updateUI();
 };
+
+// 点击外部关闭下拉
+document.addEventListener('click', (e) => {
+    const container = document.getElementById('status-filter-container');
+    const menu = document.getElementById('status-filter-menu');
+    if (container && !container.contains(e.target) && !menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+    }
+});
 
 // 筛选：日期范围
 window.updateDateRangeFilter = () => {
@@ -642,6 +728,8 @@ window.updateDateRangeFilter = () => {
     } else {
         store.dateRangeFilter = null;
     }
+    // 重置分页
+    store.pagination.list.page = 1;
     updateUI();
 };
 
@@ -650,5 +738,38 @@ window.clearDateFilter = () => {
     document.getElementById('filter-date-start').value = '';
     document.getElementById('filter-date-end').value = '';
     store.dateRangeFilter = null;
+    store.pagination.list.page = 1;
+    updateUI();
+};
+
+// ============ 分页逻辑 ============
+
+// 列表分页
+window.changeListPage = (delta) => {
+    const { page, pageSize } = store.pagination.list;
+    const tasks = store.tasks; // 这里应该用 getFilteredTasks 获取总数，但为了性能简单处理，或者在 views 渲染时已经计算了 totalPages
+    // 更好的方式是直接修改 page，视图层会处理边界
+    const newPage = page + delta;
+    if (newPage < 1) return;
+    
+    // 我们需要在 updateUI 中获取 filtered count 才能确切知道 limit
+    // 但 store 中没有 filtered count。
+    // 简单起见，允许增加，视图层渲染时会 clamp。
+    // 为了体验更好，我们在 store 中保存 filtered count? 不，太麻烦。
+    // 直接更新，视图层会处理 slice(start, end)。如果 start > total，显示空。
+    // 但是 Next 按钮的 disabled 状态需要在渲染时判断。
+    
+    store.pagination.list.page = newPage;
+    updateUI();
+};
+
+// 四象限分页
+window.changeQuadrantPage = (priorityKey, delta) => {
+    const current = store.pagination.quadrant[priorityKey];
+    if (!current) return;
+    const newPage = current.page + delta;
+    if (newPage < 1) return;
+    
+    store.pagination.quadrant[priorityKey].page = newPage;
     updateUI();
 };

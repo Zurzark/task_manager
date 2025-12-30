@@ -78,7 +78,18 @@ export const store = {
     currentViewMode: 'list',
     selectedTaskIds: new Set(),
     sortState: [{ field: 'priority', direction: 'desc' }],
-    statusFilter: null,
+    statusFilter: [], // 改为数组，支持多选. 空数组表示全部
+    
+    // 分页状态
+    pagination: {
+        list: { page: 1, pageSize: 10 },
+        quadrant: {
+            urgent: { page: 1, pageSize: 5 },
+            high: { page: 1, pageSize: 5 },
+            medium: { page: 1, pageSize: 5 },
+            low: { page: 1, pageSize: 5 }
+        }
+    },
 
     // 新增内部辅助方法：重新计算 NextShortId
     _recalcNextShortId() {
