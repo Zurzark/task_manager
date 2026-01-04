@@ -360,23 +360,26 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 }
             };
 
-            // Close other menus
-            document.querySelectorAll('.table-menu-dropdown').forEach(el => {
-                if (el !== triggerEl.nextElementSibling) {
-                    el.classList.add('hidden');
-                    el.parentElement.classList.remove('z-[100]');
-                    restoreMenu(el);
-                }
-            });
-
             const menu = triggerEl.nextElementSibling;
             if (!menu) return;
 
-            // Toggle current
-            menu.classList.toggle('hidden');
-            const parent = menu.parentElement;
+            // Check if THIS menu is already open
+            const isAlreadyOpen = !menu.classList.contains('hidden');
 
-            if (!menu.classList.contains('hidden')) {
+            // Close ALL menus first (including this one if it's open)
+            document.querySelectorAll('.table-menu-dropdown').forEach(el => {
+                el.classList.add('hidden');
+                el.parentElement.classList.remove('z-[100]');
+                restoreMenu(el);
+            });
+
+            // If it was already open, we just closed it above, so we are done (toggle off behavior).
+            // If it was closed, we open it now.
+            if (!isAlreadyOpen) {
+                // Open current
+                menu.classList.remove('hidden');
+                const parent = menu.parentElement;
+
                 // always ensure topmost by floating to body with fixed position
                 menu.__parent = parent;
                 document.body.appendChild(menu);
@@ -399,16 +402,20 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 menu.style.left = `${triggerRect.left}px`;
                 menu.style.top = `${top}px`;
                 menu.style.zIndex = '9999';
-            } else {
-                parent.classList.remove('z-[100]');
-                restoreMenu(menu);
             }
         };
 
         // Close menus when clicking outside
+        // Modification: We now close menus on ANY click that isn't inside a menu.
+        // The trigger click is handled by stopPropagation in the HTML onclick, 
+        // BUT to support "click trigger to close", we need the toggle logic above to handle the "already open" case.
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.group\\/action') && !e.target.closest('.group\\/priority') && !e.target.closest('.group\\/status')) {
-                 document.querySelectorAll('.table-menu-dropdown').forEach(el => {
+             // If click is inside a floating menu, do nothing (let menu item click handle it)
+             if (e.target.closest('.table-menu-dropdown')) return;
+             
+             // Otherwise close all menus
+             document.querySelectorAll('.table-menu-dropdown').forEach(el => {
+                if (!el.classList.contains('hidden')) {
                     el.classList.add('hidden');
                     el.parentElement.classList.remove('z-[100]');
                     // restore if floating
@@ -420,8 +427,8 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                         el.__parent.appendChild(el);
                         el.__parent = null;
                     }
-                });
-            }
+                }
+            });
         });
     }
 

@@ -140,7 +140,7 @@ export function openTaskModal(taskId) {
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-xs font-bold text-gray-500 mb-1">开始时间</label>
-                                    <input type="datetime-local" id="edit-start" value="${getShanghaiInputValue(task.startDate)}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
+                                    <input type="datetime-local" id="edit-start" value="${getShanghaiInputValue(task.startDate)}" oninput="window.handleDateInputWithDefault(this, '${task.startDate || ''}', '${(store.config.workHours && store.config.workHours.start) ? store.config.workHours.start : '09:00'}')" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-500 mb-1">截止时间</label>
@@ -148,7 +148,7 @@ export function openTaskModal(taskId) {
                                 </div>
                                 <div class="col-span-2">
                                     <label class="block text-xs font-bold text-gray-500 mb-1">提醒时间</label>
-                                    <input type="datetime-local" id="edit-reminder" value="${getShanghaiInputValue(task.reminderTime)}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
+                                    <input type="datetime-local" id="edit-reminder" value="${getShanghaiInputValue(task.reminderTime)}" oninput="window.handleDateInputWithDefault(this, '${task.reminderTime || ''}', '${(store.config.workHours && store.config.workHours.end) ? store.config.workHours.end : '18:15'}')" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
                                 </div>
                             </div>
                          </div>

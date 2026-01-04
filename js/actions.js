@@ -94,6 +94,27 @@ window.handleDateInput = (input, originalValStr) => {
     }
 };
 
+window.handleDateInputWithDefault = (input, originalValStr, defaultTime) => {
+    const val = input.value;
+    if (!val) return;
+    const [datePart] = val.split('T');
+    const fallback = defaultTime || ((store.config.workHours && store.config.workHours.end) ? store.config.workHours.end : '18:15');
+    
+    let shouldUpdate = false;
+    if (!originalValStr) {
+        shouldUpdate = true;
+    } else {
+        const originalDatePart = getShanghaiInputValue(originalValStr).split('T')[0];
+        if (datePart !== originalDatePart) {
+            shouldUpdate = true;
+        }
+    }
+    if (shouldUpdate && input.dataset.lastDate !== datePart) {
+        input.value = `${datePart}T${fallback}`;
+        input.dataset.lastDate = datePart;
+    }
+};
+
 window.editTaskField = (taskId, field, event) => {
     const task = store.tasks.find(t => t.id === taskId);
     if (!task) return;

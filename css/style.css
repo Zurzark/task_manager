@@ -8,6 +8,11 @@
 .fade-in { animation: fadeIn 0.3s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 
+/* ============ 覆盖 Tailwind 默认类 ============ */
+.font-medium {
+    font-weight: 700 !important; /* 原为 500 */
+}
+
 /* ============ 优先级视觉重构 (更显眼) ============ */
 .task-card {
     transition: all 0.2s ease;

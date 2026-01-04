@@ -188,7 +188,7 @@ export function openLogsModal() {
                 </div>
                 <table class="w-full text-sm text-left">
                     <thead class="bg-gray-50 text-gray-600"><tr><th class="p-2">时间</th><th class="p-2">模型</th><th class="p-2">Tokens</th><th class="p-2">费用</th><th class="p-2">耗时</th></tr></thead>
-                    <tbody class="divide-y">${store.apiLogs.map(log => `<tr><td class="p-2 text-gray-500">${new Date(log.timestamp).toLocaleString()}</td><td class="p-2">${escapeHtml(log.model)}</td><td class="p-2">${log.tokens.total_tokens}</td><td class="p-2 font-bold text-orange-500">¥${log.cost.toFixed(4)}</td><td class="p-2 text-gray-400">${log.duration}ms}</td></tr>`).join('')}</tbody>
+                    <tbody class="divide-y">${store.apiLogs.map(log => `<tr><td class="p-2 text-gray-500">${new Date(log.timestamp).toLocaleString()}</td><td class="p-2">${escapeHtml(log.model)}</td><td class="p-2">${log.tokens.total_tokens}</td><td class="p-2 font-bold text-orange-500">¥${log.cost.toFixed(4)}</td><td class="p-2 text-gray-400">${log.duration} ms</td></tr>`).join('')}</tbody>
                 </table>
             </div>
         </div>
