@@ -26,10 +26,10 @@ function getPriorityConfig(priority) {
 // 辅助：获取状态配置
 function getStatusConfig(status) {
     const map = {
-        pending: { label: '待开始', class: 'status-pending' },
-        active: { label: '进行中', class: 'status-active' },
-        done: { label: '已完成', class: 'status-done' },
-        cancelled: { label: '已取消', class: 'status-cancelled' }
+        pending: { label: '待开始', class: 'bg-gray-100 text-gray-600 border-gray-200' },
+        active: { label: '进行中', class: 'bg-blue-100 text-blue-700 border-blue-200' },
+        done: { label: '已完成', class: 'bg-green-100 text-green-700 border-green-200' },
+        cancelled: { label: '已取消', class: 'bg-red-100 text-red-700 border-red-200 line-through' }
     };
     return map[status] || map.pending;
 }
@@ -324,6 +324,86 @@ function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
 function renderTableRows(nodes, level = 0, parentIsLast = true) {
     let html = '';
     
+    // Global helper for table menus
+    if (!window.toggleTableMenu) {
+        window.toggleTableMenu = function(triggerEl) {
+            // helper: restore floating menu to original parent
+            const restoreMenu = (m) => {
+                if (m.__parent) {
+                    m.style.position = '';
+                    m.style.left = '';
+                    m.style.top = '';
+                    m.style.zIndex = '';
+                    m.__parent.appendChild(m);
+                    m.__parent = null;
+                }
+            };
+
+            // Close other menus
+            document.querySelectorAll('.table-menu-dropdown').forEach(el => {
+                if (el !== triggerEl.nextElementSibling) {
+                    el.classList.add('hidden');
+                    el.parentElement.classList.remove('z-[100]');
+                    restoreMenu(el);
+                }
+            });
+
+            const menu = triggerEl.nextElementSibling;
+            if (!menu) return;
+
+            // Toggle current
+            menu.classList.toggle('hidden');
+            const parent = menu.parentElement;
+
+            if (!menu.classList.contains('hidden')) {
+                // always ensure topmost by floating to body with fixed position
+                menu.__parent = parent;
+                document.body.appendChild(menu);
+                const triggerRect = triggerEl.getBoundingClientRect();
+                const container = triggerEl.closest('.overflow-auto');
+                // measure height after moving
+                const menuHeight = menu.offsetHeight || 0;
+                let top = triggerRect.bottom + 4;
+                if (container) {
+                    const cr = container.getBoundingClientRect();
+                    if (top + menuHeight > cr.bottom - 5) {
+                        top = triggerRect.top - menuHeight - 4;
+                    }
+                } else {
+                    if (top + menuHeight > window.innerHeight - 5) {
+                        top = triggerRect.top - menuHeight - 4;
+                    }
+                }
+                menu.style.position = 'fixed';
+                menu.style.left = `${triggerRect.left}px`;
+                menu.style.top = `${top}px`;
+                menu.style.zIndex = '9999';
+            } else {
+                parent.classList.remove('z-[100]');
+                restoreMenu(menu);
+            }
+        };
+
+        // Close menus when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.group\\/action') && !e.target.closest('.group\\/priority') && !e.target.closest('.group\\/status')) {
+                 document.querySelectorAll('.table-menu-dropdown').forEach(el => {
+                    el.classList.add('hidden');
+                    el.parentElement.classList.remove('z-[100]');
+                    // restore if floating
+                    if (el.__parent) {
+                        el.style.position = '';
+                        el.style.left = '';
+                        el.style.top = '';
+                        el.style.zIndex = '';
+                        el.__parent.appendChild(el);
+                        el.__parent = null;
+                    }
+                });
+            }
+        });
+    }
+
     nodes.forEach((task, index) => {
         const isLastChild = index === nodes.length - 1;
         const isSelected = store.selectedTaskIds.has(task.id);
@@ -386,12 +466,12 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 <!-- 3. 行动项 (新位置) -->
                 <td class="w-20 text-center">
                     <div class="relative group/action flex justify-center z-20 hover:z-50">
-                        <span onclick="event.stopPropagation()" 
-                            class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
+                        <span onclick="event.stopPropagation(); window.toggleTableMenu(this)" 
+                            class="px-1.5 py-0.5 rounded text-xs scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
                             ${aConfig.label}
                         </span>
                         <!-- 简易下拉菜单 -->
-                        <div class="hidden group-hover/action:block absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
+                        <div class="hidden table-menu-dropdown absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
                             <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
                             <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
                             <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
@@ -432,12 +512,12 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 <!-- 5. 优先级 (Badge) -->
                 <td class="w-24 text-center">
                      <div class="relative group/priority flex justify-center z-20 hover:z-50">
-                        <span onclick="event.stopPropagation()" 
-                             class="px-1.5 py-0.5 rounded text-[10px] scale-90 border cursor-pointer select-none whitespace-nowrap ${pBadgeConfig.class}">
+                        <span onclick="event.stopPropagation(); window.toggleTableMenu(this)" 
+                             class="px-1.5 py-0.5 rounded text-xs scale-90 border cursor-pointer select-none whitespace-nowrap ${pBadgeConfig.class}">
                              ${pBadgeConfig.label}
                         </span>
                         <!-- 优先级下拉菜单 -->
-                        <div class="hidden group-hover/priority:block absolute left-0 top-full mt-1 w-28 bg-white shadow-lg rounded border z-50 text-left py-1">
+                        <div class="hidden table-menu-dropdown absolute left-0 top-full mt-1 w-28 bg-white shadow-lg rounded border z-50 text-left py-1">
                             <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updatePriority('${task.id}', 'urgent')">重要且紧急</div>
                             <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-orange-600" onclick="window.updatePriority('${task.id}', 'high')">重要不紧急</div>
                             <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updatePriority('${task.id}', 'medium')">不重要紧急</div>
@@ -457,10 +537,20 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 </td>
 
                 <!-- 7. 状态 -->
-                <td class="w-24 text-center whitespace-nowrap editable-cell" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'status', event)">
-                    <span class="status-badge ${sConfig.class}">
-                        ${sConfig.label}
-                    </span>
+                <td class="w-24 text-center whitespace-nowrap">
+                    <div class="relative group/status flex justify-center z-20 hover:z-50">
+                        <span onclick="event.stopPropagation(); window.toggleTableMenu(this)" 
+                            class="px-1.5 py-0.5 rounded text-xs scale-90 border cursor-pointer select-none whitespace-nowrap ${sConfig.class}">
+                            ${sConfig.label}
+                        </span>
+                        <!-- 状态下拉菜单 -->
+                        <div class="hidden table-menu-dropdown absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.saveTaskField('${task.id}', 'status', 'pending')">待开始</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.saveTaskField('${task.id}', 'status', 'active')">进行中</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.saveTaskField('${task.id}', 'status', 'done')">已完成</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.saveTaskField('${task.id}', 'status', 'cancelled')">已取消</div>
+                        </div>
+                    </div>
                 </td>
 
                 <!-- 8. 操作 -->
@@ -526,7 +616,7 @@ export const render = {
                                 
                                 <th>任务详情</th>
                                 <th class="w-24 text-center cursor-pointer select-none" onclick="window.toggleSort('priority')">
-                                    <div class="flex items-center justify-center gap-1 text-gray-500 font-normal">
+                                    <div class="flex items-center justify-center gap-1 text-gray-500 font-bold">
                                         优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}
                                     </div>
                                 </th>
