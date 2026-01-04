@@ -156,88 +156,161 @@
     background-color: #eff6ff;
 }
 
-/* css/style.css */
-
-/* ... (保留原有样式) ... */
-
-/* ============ 表格视图样式 ============ */
-.task-table-container {
-    background: white;
+/* ============ AI Modal 样式 ============ */
+.ai-modal-task-card {
+    border-width: 1px;
     border-radius: 0.75rem;
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-    border: 1px solid #e5e7eb;
-    overflow: visible;
+    padding: 1rem;
+    transition: all 0.2s;
+    /* 默认仅左侧边框稍微粗一点，但不像主界面那么夸张 */
+    border-left-width: 4px;
+}
+.ai-modal-task-card:hover {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
-.task-table th {
-    background-color: #f9fafb;
-    color: #6b7280;
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0.75rem 1rem;
-    text-align: left;
-    border-bottom: 1px solid #e5e7eb;
+.ai-task-selected {
+    /* 默认边框颜色，稍后会被优先级类覆盖左边框 */
+    border-color: #e9d5ff; /* purple-200 */
+    background-color: #FAF5FF; /* custom purple tint */
+    opacity: 1;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
-.task-table td {
-    padding: 0.75rem 1rem;
-    vertical-align: top; /* 内容顶部对齐 */
-    border-bottom: 1px solid #f3f4f6;
-    font-size: 0.875rem;
-    color: #374151;
+.ai-task-unselected {
+    border-color: #e5e7eb; /* gray-200 */
+    border-style: dashed;
+    background-color: #f9fafb; /* gray-50 */
+    opacity: 0.5;
+    filter: grayscale(100%);
 }
 
-.task-table tr:last-child td {
-    border-bottom: none;
-}
+/* AI Modal 专用优先级样式：纯白背景，仅左边框变色 */
+.ai-priority-urgent { border-left-color: #ef4444; } /* red-500 */
+.ai-priority-high { border-left-color: #f97316; } /* orange-500 */
+.ai-priority-medium { border-left-color: #eab308; } /* yellow-500 */
+.ai-priority-low { border-left-color: #22c55e; } /* green-500 */
+.ai-priority-none { border-left-color: #d1d5db; } /* gray-300 */
 
-.task-table tr:hover {
-    background-color: #f9fafb;
-}
+/* 优先级文本颜色 (用于标题) */
+.ai-text-urgent { color: #dc2626; } /* red-600 */
+.ai-text-high { color: #ea580c; } /* orange-600 */
+.ai-text-medium { color: #ca8a04; } /* yellow-600 */
+.ai-text-low { color: #16a34a; } /* green-600 */
+.ai-text-none { color: #374151; } /* gray-700 */
 
-/* 表格内的树形结构连线 */
-.table-tree-node {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
-}
+/* 优先级徽章 (用于下拉选择) */
+.ai-badge-urgent { background-color: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.ai-badge-high { background-color: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
+.ai-badge-medium { background-color: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+.ai-badge-low { background-color: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.ai-badge-none { background-color: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
 
-/* 树形连接线 - 竖线 */
-.table-tree-line-v {
-    position: absolute;
-    left: -14px;
-    top: -14px; /* 连接上一行 */
-    bottom: 0;
-    width: 1px;
-    background-color: #e5e7eb;
-}
-/* 最后一个子节点，竖线只延伸到一半 */
-.is-last-child .table-tree-line-v {
-    bottom: 50%; 
-}
+/* 行动徽章 (用于下拉选择) */
+.ai-action-next { background-color: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; } /* blue */
+.ai-action-waiting { background-color: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; } /* orange */
+.ai-action-someday { background-color: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; } /* violet */
 
-/* 树形连接线 - 横线 */
-.table-tree-line-h {
-    position: absolute;
-    left: -14px;
-    top: 50%;
-    width: 12px;
-    height: 1px;
-    background-color: #e5e7eb;
-}
 
-/* 状态徽章 */
-.status-badge {
+/* 关联胶囊样式 */
+.ai-relation-capsule {
     display: inline-flex;
     align-items: center;
-    padding: 2px 8px;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
     border-radius: 9999px;
     font-size: 0.75rem;
-    font-weight: 500;
+    border-width: 1px;
+    cursor: help;
+    transition: all 0.2s;
 }
-.status-pending { background-color: #f3f4f6; color: #4b5563; }
-.status-active { background-color: #eff6ff; color: #2563eb; }
-.status-done { background-color: #f0fdf4; color: #16a34a; }
-.status-cancelled { background-color: #fef2f2; color: #dc2626; text-decoration: line-through; }
+
+.ai-capsule-parent {
+    background-color: #eff6ff; /* blue-50 */
+    color: #2563eb; /* blue-600 */
+    border-color: #bfdbfe; /* blue-200 */
+}
+.ai-capsule-parent:hover { background-color: #dbeafe; }
+
+.ai-capsule-dependency {
+    background-color: #fef2f2; /* red-50 */
+    color: #dc2626; /* red-600 */
+    border-color: #fecaca; /* red-200 */
+}
+.ai-capsule-dependency:hover { background-color: #fee2e2; }
+
+.ai-capsule-relation {
+    background-color: #f3e8ff; /* purple-50 */
+    color: #7e22ce; /* purple-700 */
+    border-color: #e9d5ff; /* purple-200 */
+}
+.ai-capsule-relation:hover { background-color: #f3e8ff; }
+
+
+.ai-frog-btn {
+    font-size: 1rem; /* 调整后的字号，原为 xl (1.25rem) */
+    transition: transform 0.2s;
+}
+.ai-frog-btn:hover { transform: scale(1.1); }
+.ai-frog-btn:active { transform: scale(0.95); }
+
+.ai-task-id {
+    font-size: 0.75rem; /* text-xs */
+    font-weight: 700;
+    color: #9ca3af; /* gray-400 */
+    user-select: none;
+}
+
+.ai-input-title {
+    flex: 1;
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    font-weight: 700;
+    /* 颜色现在由 JS 动态控制类名 */
+    font-size: 1.125rem; /* text-lg */
+    line-height: 1.25;
+    transition: all 0.2s;
+}
+.ai-input-title:focus {
+    outline: none;
+    border-bottom: 2px solid #a855f7; /* purple-500 */
+}
+
+.ai-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: #1f2937; /* gray-800 */
+    color: white;
+    font-size: 0.75rem;
+    border-radius: 0.375rem;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    visibility: hidden;
+    opacity: 0;
+    transition: all 0.2s;
+    z-index: 50;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: 200px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+.group:hover .ai-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+/* Tooltip 小箭头 */
+.ai-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -4px;
+    border-width: 4px;
+    border-style: solid;
+    border-color: #1f2937 transparent transparent transparent;
+}

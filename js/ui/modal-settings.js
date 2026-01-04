@@ -28,8 +28,28 @@ export function renderSettingsModalContent() {
                 </div>
                 
                 <div class="flex gap-4 mb-4 border-b">
+                    <button onclick="window.switchSettingsTab('general')" class="pb-2 px-1 ${settingsTab === 'general' ? 'border-b-2 border-blue-500 text-blue-600 font-bold' : 'text-gray-500'}">常规设置</button>
                     <button onclick="window.switchSettingsTab('api')" class="pb-2 px-1 ${settingsTab === 'api' ? 'border-b-2 border-blue-500 text-blue-600 font-bold' : 'text-gray-500'}">API 配置</button>
                     <button onclick="window.switchSettingsTab('prompt')" class="pb-2 px-1 ${settingsTab === 'prompt' ? 'border-b-2 border-blue-500 text-blue-600 font-bold' : 'text-gray-500'}">Prompt 设置</button>
+                </div>
+
+                <div class="${settingsTab === 'general' ? '' : 'hidden'}">
+                    <h4 class="font-bold mb-4 text-gray-700">工作时间设置</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">工作开始时间</label>
+                            <input type="time" id="setting-work-start" value="${store.config.workHours?.start || '09:00'}" class="w-full border rounded p-2 text-sm">
+                            <p class="text-xs text-gray-500 mt-1">每天工作的开始时间</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">工作结束时间</label>
+                            <input type="time" id="setting-work-end" value="${store.config.workHours?.end || '18:15'}" class="w-full border rounded p-2 text-sm">
+                            <p class="text-xs text-gray-500 mt-1">每天工作的结束时间 (默认截止时间)</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button onclick="window.saveGeneralSettings()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存设置</button>
+                    </div>
                 </div>
 
                 <div class="${settingsTab === 'api' ? '' : 'hidden'} grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -99,6 +119,17 @@ export function renderSettingsModalContent() {
 export function switchSettingsTab(tab) {
     settingsTab = tab;
     renderSettingsModalContent();
+}
+
+export function saveGeneralSettings() {
+    const start = document.getElementById('setting-work-start').value;
+    const end = document.getElementById('setting-work-end').value;
+    
+    if (!start || !end) return alert('请填写完整的时间');
+    
+    store.config.workHours = { start, end };
+    store.saveConfig();
+    alert('设置已保存');
 }
 
 export function savePrompt() {

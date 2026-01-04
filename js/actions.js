@@ -1,7 +1,7 @@
 import { store } from './store.js';
 import { updateUI } from './ui/core.js';
 import { openTaskModal, saveTaskEdit, deleteTaskAndClose, addRelationRow } from './ui/modal-task.js';
-import { openSettingsModal, openLogsModal, switchSettingsTab, savePrompt, setActiveApi, editApi, resetEditForm, deleteApi, saveApiForm } from './ui/modal-settings.js';
+import { openSettingsModal, openLogsModal, switchSettingsTab, savePrompt, setActiveApi, editApi, resetEditForm, deleteApi, saveApiForm, saveGeneralSettings } from './ui/modal-settings.js';
 import { openMemoryModal, switchMemoryTab, saveMemoryProfile, saveMemoryConfig, openAddMemoryModal, saveNewMemory, toggleMemory, editMemory, saveEditedMemory, deleteMemory, organizeMemories } from './ui/modal-memory.js';
 import { openAIConfirmModal, toggleTempTask, confirmImportTasks } from './ui/modal-ai.js';
 import { getShanghaiInputValue } from './utils.js';
@@ -22,6 +22,7 @@ window.editApi = editApi;
 window.resetEditForm = resetEditForm;
 window.deleteApi = deleteApi;
 window.saveApiForm = saveApiForm;
+window.saveGeneralSettings = saveGeneralSettings;
 
 window.switchMemoryTab = switchMemoryTab;
 window.saveMemoryProfile = saveMemoryProfile;
@@ -55,6 +56,44 @@ export function handleQuickAdd() {
 }
 window.handleQuickAdd = handleQuickAdd;
 
+window.handleDateInput = (input, originalValStr) => {
+    const val = input.value;
+    if (!val) return;
+    
+    const [datePart, timePart] = val.split('T');
+    
+    // 获取配置的下班时间 (默认 18:15)
+    const workEnd = (store.config.workHours && store.config.workHours.end) ? store.config.workHours.end : '18:15';
+    
+    // 判断是否需要自动填充时间
+    // 逻辑：如果原始值为空（新设置），或者日期部分发生了变化，则将时间重置为下班时间
+    let shouldUpdate = false;
+    
+    if (!originalValStr) {
+        shouldUpdate = true;
+    } else {
+        // originalValStr 是 ISO 格式，需要转换对比
+        const originalDatePart = getShanghaiInputValue(originalValStr).split('T')[0];
+        if (datePart !== originalDatePart) {
+            shouldUpdate = true;
+        }
+    }
+    
+    // 只有当当前时间不是用户手动设定的特定时间（难以判断，这里简单假设：如果日期变了，我们就重置时间）
+    // 为了防止死循环或用户无法修改时间：
+    // 我们检查 input.dataset.lastDate，如果用户是在同一个 session 里修改日期，也触发
+    // 但如果用户是在修改时间（日期没变），则不触发
+    
+    if (shouldUpdate) {
+        // 防止用户刚改了时间又被重置：只有当日期确实变了才重置
+        // 如果用户先改了日期（触发重置），再改时间（日期没变），就不会触发这里
+        if (input.dataset.lastDate !== datePart) {
+             input.value = `${datePart}T${workEnd}`;
+             input.dataset.lastDate = datePart; // 标记该日期已处理
+        }
+    }
+};
+
 window.editTaskField = (taskId, field, event) => {
     const task = store.tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -78,7 +117,7 @@ window.editTaskField = (taskId, field, event) => {
         `;
     } else if (field.includes('Date') || field.includes('Time') || field === 'completedAt') {
         let dateVal = getShanghaiInputValue(currentVal);
-        inputHtml = `<input type="datetime-local" class="text-xs border rounded p-1 w-full" value="${dateVal}" onblur="window.saveTaskField('${taskId}', '${field}', this.value)" onkeydown="if(event.key==='Enter') this.blur()" onclick="event.stopPropagation()">`;
+        inputHtml = `<input type="datetime-local" class="text-xs border rounded p-1 w-full" value="${dateVal}" oninput="window.handleDateInput(this, '${currentVal || ''}')" onblur="window.saveTaskField('${taskId}', '${field}', this.value)" onkeydown="if(event.key==='Enter') this.blur()" onclick="event.stopPropagation()">`;
     }
     
     cell.innerHTML = inputHtml;

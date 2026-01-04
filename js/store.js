@@ -99,7 +99,8 @@ const DEFAULT_CONFIG = {
     ],
     activeApiId: 'default',
     prompt: DEFAULT_PROMPT,
-    nextShortId: 1 // 新增：用于 ShortId 自增
+    nextShortId: 1, // 新增：用于 ShortId 自增
+    workHours: { start: '09:00', end: '18:15' } // 工作时间设置
 };
 
 export const store = {

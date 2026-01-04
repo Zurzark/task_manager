@@ -1,0 +1,29 @@
+(function() {
+    try {
+        const key = 'tasks_v3';
+        const raw = localStorage.getItem(key);
+        if (!raw) {
+            console.log('No tasks found.');
+            return;
+        }
+        const tasks = JSON.parse(raw);
+        let count = 0;
+        tasks.forEach(t => {
+            // If actionType is missing or null, set it to default 'NEXT'
+            if (!t.actionType) {
+                t.actionType = 'NEXT';
+                count++;
+            }
+        });
+        
+        if (count > 0) {
+            localStorage.setItem(key, JSON.stringify(tasks));
+            console.log(`✅ Successfully fixed ${count} tasks. Refresh the page to see results.`);
+            location.reload(); 
+        } else {
+            console.log('✨ All tasks already have valid Action Types.');
+        }
+    } catch (e) {
+        console.error('❌ Error:', e);
+    }
+})();

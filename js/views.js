@@ -188,7 +188,7 @@ function renderSortHeader(field, label) {
     
     return `
         <th class="cursor-pointer hover:bg-gray-100 transition select-none" onclick="window.toggleSort('${field}')">
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1 text-gray-500 font-bold">
                 ${label}
                 <i class="${icon} text-xs"></i>
                 ${badge}
@@ -200,7 +200,7 @@ function renderSortHeader(field, label) {
 // 辅助：渲染状态表头 (仅标题)
 function renderStatusHeader() {
     return `
-        <th class="text-center select-none text-gray-500 font-normal">
+        <th class="text-center select-none text-gray-500 font-bold">
             状态
         </th>
     `;
@@ -611,21 +611,21 @@ export const render = {
                                         onchange="document.getElementById('select-all-checkbox').click()"
                                         class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                                 </th>
-                                <th class="w-12 text-center">🐸</th>
-                                <th class="w-20 text-center text-gray-500 font-normal">行动</th>
+                                <th class="w-12 text-center text-gray-500 font-bold">🐸</th>
+                                <th class="w-20 text-center text-gray-500 font-bold">行动</th>
                                 
-                                <th>任务详情</th>
+                                <th class="text-gray-500 font-bold">任务详情</th>
                                 <th class="w-24 text-center cursor-pointer select-none" onclick="window.toggleSort('priority')">
                                     <div class="flex items-center justify-center gap-1 text-gray-500 font-bold">
                                         优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}
                                     </div>
                                 </th>
                                 
-                                <th class="w-32 text-center text-gray-500 font-normal">创建时间</th>
+                                <th class="w-32 text-center text-gray-500 font-bold">创建时间</th>
                                 ${renderSortHeader('dueDate', '截止时间')}
                                 
                                 ${renderStatusHeader()}
-                                <th class="text-center w-24">操作</th>
+                                <th class="text-center w-24 text-gray-500 font-bold">操作</th>
                             </tr>
                         </thead>
                         <tbody>
