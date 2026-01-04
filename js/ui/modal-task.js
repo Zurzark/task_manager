@@ -78,25 +78,18 @@ export function openTaskModal(taskId) {
                         <textarea id="edit-desc" rows="3" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm">${escapeHtml(task.description || '')}</textarea>
                     </div>
 
-                    <!-- 2. 属性: 四象限、分类、青蛙、行动 -->
+                    <!-- 2. 属性: 优先级、分类、青蛙、行动 -->
                     <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                         <div class="grid grid-cols-2 gap-4 mb-3">
+                         <div class="grid grid-cols-4 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 mb-1">重要性 (1-4)</label>
-                                <div class="flex items-center gap-2">
-                                    <input type="range" id="edit-importance" min="1" max="4" value="${task.importance || 2}" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500" oninput="this.nextElementSibling.value = this.value">
-                                    <output class="text-xs font-bold text-blue-600 w-4 text-center">${task.importance || 2}</output>
-                                </div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1">优先级</label>
+                                <select id="edit-priority" class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white">
+                                    <option value="urgent" ${task.priority === 'urgent' ? 'selected' : ''}>🔥 重要且紧急</option>
+                                    <option value="high" ${task.priority === 'high' ? 'selected' : ''}>🌱 重要不紧急</option>
+                                    <option value="medium" ${task.priority === 'medium' ? 'selected' : ''}>🏃 不重要紧急</option>
+                                    <option value="low" ${task.priority === 'low' ? 'selected' : ''}>🍵 不重要不紧急</option>
+                                </select>
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 mb-1">紧急度 (1-4)</label>
-                                <div class="flex items-center gap-2">
-                                    <input type="range" id="edit-urgency" min="1" max="4" value="${task.urgency || 2}" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-500" oninput="this.nextElementSibling.value = this.value">
-                                    <output class="text-xs font-bold text-red-600 w-4 text-center">${task.urgency || 2}</output>
-                                </div>
-                            </div>
-                         </div>
-                         <div class="grid grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-gray-500 mb-1">分类</label>
                                 <input type="text" id="edit-category" value="${escapeHtml(task.category || '')}" list="category-suggestions" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
@@ -123,22 +116,57 @@ export function openTaskModal(taskId) {
                     </div>
 
                     <!-- 3. 时间管理 -->
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-2 gap-4">
+                         <!-- 左侧：创建与完成（只读/手动） -->
+                         <div class="space-y-3 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                            <h4 class="text-xs font-bold text-gray-400 uppercase">生命周期</h4>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 mb-1">创建时间</label>
+                                    <div class="text-sm font-mono text-gray-600 py-2 bg-gray-100 rounded px-2 border border-transparent">
+                                        ${new Date(task.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 mb-1">完成时间</label>
+                                    <input type="datetime-local" id="edit-completed-at" value="${getShanghaiInputValue(task.completedAt)}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
+                                </div>
+                            </div>
+                         </div>
+
+                         <!-- 右侧：计划与提醒 -->
+                         <div class="space-y-3 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                            <h4 class="text-xs font-bold text-blue-400 uppercase">计划排程</h4>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 mb-1">开始时间</label>
+                                    <input type="datetime-local" id="edit-start" value="${getShanghaiInputValue(task.startDate)}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 mb-1">截止时间</label>
+                                    <input type="datetime-local" id="edit-due" value="${getShanghaiInputValue(task.dueDate)}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-bold text-gray-500 mb-1">提醒时间</label>
+                                    <input type="datetime-local" id="edit-reminder" value="${getShanghaiInputValue(task.reminderTime)}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
+                                </div>
+                            </div>
+                         </div>
+                    </div>
+
+                    <!-- 4. 标签与相关人 -->
+                    <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">开始时间</label>
-                            <input type="datetime-local" id="edit-start" value="${getShanghaiInputValue(task.startDate)}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            <label class="block text-xs font-bold text-gray-500 mb-1">标签</label>
+                            <div id="tags-input-container"></div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">截止时间</label>
-                            <input type="datetime-local" id="edit-due" value="${getShanghaiInputValue(task.dueDate)}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">提醒时间</label>
-                            <input type="datetime-local" id="edit-reminder" value="${getShanghaiInputValue(task.reminderTime)}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            <label class="block text-xs font-bold text-gray-500 mb-1">相关人</label>
+                            <div id="assignees-input-container"></div>
                         </div>
                     </div>
 
-                    <!-- 4. 耗时与标签 -->
+                    <!-- 5. 耗时与父任务 -->
                     <div class="grid grid-cols-3 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-500 mb-1">预估耗时 (分)</label>
@@ -148,27 +176,22 @@ export function openTaskModal(taskId) {
                             <label class="block text-xs font-bold text-gray-500 mb-1">实际耗时 (分)</label>
                             <input type="number" id="edit-act-min" value="${task.actualMinutes || ''}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 mb-1">标签 (逗号分隔)</label>
-                            <input type="text" id="edit-tags" value="${(task.tags || []).join(', ')}" placeholder="tag1, tag2" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                         <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">父任务</label>
+                            <select id="edit-parent" class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white">
+                                <option value="">(无父任务)</option>
+                                ${potentialParents.map(p => `<option value="${p.id}" ${task.parentId === p.id ? 'selected' : ''}>#${p.shortId} ${escapeHtml(p.title)}</option>`).join('')}
+                            </select>
                         </div>
                     </div>
 
-                    <!-- 5. 关系管理 -->
+                    <!-- 6. 关系管理 -->
                     <div class="border-t pt-4">
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 mb-1">父任务</label>
-                                <select id="edit-parent" class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white">
-                                    <option value="">(无父任务)</option>
-                                    ${potentialParents.map(p => `<option value="${p.id}" ${task.parentId === p.id ? 'selected' : ''}>#${p.shortId} ${escapeHtml(p.title)}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="flex items-end justify-end">
-                                <button onclick="window.addRelationRow()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 mb-2">
-                                    <i class="ri-add-circle-line"></i> 添加关联/依赖
-                                </button>
-                            </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-xs font-bold text-gray-500">任务关联</label>
+                            <button onclick="window.addRelationRow()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                                <i class="ri-add-circle-line"></i> 添加关联
+                            </button>
                         </div>
                         
                         <div id="relations-container" class="space-y-2 bg-gray-50 p-3 rounded-lg min-h-[50px]"></div>
@@ -203,6 +226,35 @@ export function openTaskModal(taskId) {
     `;
     document.getElementById('modal-container').innerHTML = modalHtml;
 
+    // 初始化 Tag Input
+    let currentTags = [...(task.tags || [])];
+    let currentAssignees = [...(task.assignees || [])];
+
+    window.initTagInput('tags-input-container', currentTags, (newTags) => {
+        currentTags = newTags;
+    });
+
+    window.initTagInput('assignees-input-container', currentAssignees, (newAssignees) => {
+        currentAssignees = newAssignees;
+    });
+    
+    // 挂载到 window 对象上供 saveTaskEdit 读取 (临时方案，或者直接在 saveTaskEdit 读取 DOM 状态?)
+    // 更好的方式是 saveTaskEdit 直接读取 TagInput 组件的状态，但 TagInput 目前没有暴露 getter。
+    // 我们把数据挂载到 modal 容器的 dataset 上
+    const modalEl = document.querySelector('.bg-white.rounded-xl'); // 只有这个是最具体的容器
+    if(modalEl) {
+        modalEl._currentTags = currentTags;
+        modalEl._currentAssignees = currentAssignees;
+        
+        // 重新绑定 callback 来更新这个属性
+        window.initTagInput('tags-input-container', currentTags, (newTags) => {
+            modalEl._currentTags = newTags;
+        });
+        window.initTagInput('assignees-input-container', currentAssignees, (newAssignees) => {
+            modalEl._currentAssignees = newAssignees;
+        });
+    }
+
     // 初始化关联
     const container = document.getElementById('relations-container');
     if (task.relations && task.relations.length > 0) {
@@ -221,9 +273,8 @@ export function saveTaskEdit(id) {
     const status = document.getElementById('edit-status').value;
     const category = document.getElementById('edit-category').value;
     
-    // 收集四象限
-    const urgency = parseInt(document.getElementById('edit-urgency').value);
-    const importance = parseInt(document.getElementById('edit-importance').value);
+    // 收集优先级
+    const priority = document.getElementById('edit-priority').value;
     
     // 收集 Frog/Action
     const isFrog = document.getElementById('edit-frog').value === 'true';
@@ -233,12 +284,16 @@ export function saveTaskEdit(id) {
     const start = document.getElementById('edit-start').value;
     const due = document.getElementById('edit-due').value;
     const reminder = document.getElementById('edit-reminder').value;
+    const completedAt = document.getElementById('edit-completed-at').value;
     
-    // 收集耗时与标签
+    // 收集耗时与标签/相关人
     const estMin = document.getElementById('edit-est-min').value;
     const actMin = document.getElementById('edit-act-min').value;
-    const tagsStr = document.getElementById('edit-tags').value;
-    const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+    
+    // 从 DOM 对象获取最新的 tags/assignees
+    const modalEl = document.querySelector('.bg-white.rounded-xl');
+    const tags = modalEl && modalEl._currentTags ? modalEl._currentTags : [];
+    const assignees = modalEl && modalEl._currentAssignees ? modalEl._currentAssignees : [];
     
     // 收集父任务
     const parentId = document.getElementById('edit-parent').value || null;
@@ -261,14 +316,15 @@ export function saveTaskEdit(id) {
 
     store.updateTask(id, { 
         title, description: desc, status, category,
-        urgency, importance,
+        priority,
         isFrog, actionType,
         startDate: start ? new Date(start + '+08:00').toISOString() : null,
         dueDate: due ? new Date(due + '+08:00').toISOString() : null,
         reminderTime: reminder ? new Date(reminder + '+08:00').toISOString() : null,
+        completedAt: completedAt ? new Date(completedAt + '+08:00').toISOString() : null,
         estimatedMinutes: estMin ? parseInt(estMin) : null,
         actualMinutes: actMin ? parseInt(actMin) : null,
-        tags,
+        tags, assignees,
         parentId, relations
     });
     

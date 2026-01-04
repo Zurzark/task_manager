@@ -22,16 +22,18 @@ const DEFAULT_PROMPT = `# Role
   - *Bad*: "去", "做", "紧急"
 
 ## 3. 优先级判断 (Priority Matrix)
-基于四象限法则分析任务：
-- **Urgency (紧急度)**: 1(不急)-4(极急)。基于截止时间或“马上”、“立刻”等词判断。
-- **Importance (重要度)**: 1(不重)-4(极重)。基于任务核心价值或后果判断。
+基于任务性质判断：
 - **Priority**: 综合推断：
-  - 'urgent': 高重要 + 高紧急
-  - 'high': 高重要 + 低紧急
-  - 'medium': 低重要 + 高紧急
-  - 'low': 低重要 + 低紧急
+  - 'urgent': 重要且紧急
+  - 'high': 重要不紧急
+  - 'medium': 不重要紧急
+  - 'low': 不重要不紧急
 - **is_frog**: boolean (true/false). 是否为"青蛙任务" (最困难/最重要的任务，或者当前最应该关注的问题).
 - **action_type**: 'NEXT', 'SOMEDAY', 'WAITING'. 默认 NEXT.（NEXT是接下来马上就可以去做的，SOMEDAY是过一段时间再去做，WAITING是需要等待）
+- **assignees**: [String]. 相关人/责任人姓名.
+- **startDate**: "ISO String" (任务预计开始时间)
+- **dueDate**: "ISO String" (任务预计截止时间)
+- **reminderTime**: "ISO String" (提醒时间)
 
 ## 4. 时间解析 (Time Extraction)
 基于当前时间推断绝对时间 (ISO 8601格式)。如果提取不到则忽略该字段：
@@ -69,8 +71,7 @@ const DEFAULT_PROMPT = `# Role
     "is_frog":boolean, //true false
     "action_type":"NEXT|SOMEDAY|WAIING",
     "priority": "urgent|high|medium|low",
-    "urgency": 1-4,
-    "importance": 1-4,
+    "assignees": ["String"],
     "startDate": "ISO String",
     "dueDate": "ISO String",
     "reminderTime": "ISO String",
@@ -181,10 +182,13 @@ export const store = {
             }
             if (t.shortId > maxShortId) maxShortId = t.shortId;
 
-            if (!t.urgency) { t.urgency = 2; t.importance = 2; hasChanges = true; }
+            // 移除旧属性
+            if (t.urgency !== undefined) { delete t.urgency; hasChanges = true; }
+            if (t.importance !== undefined) { delete t.importance; hasChanges = true; }
             
             // 修复旧数据结构
             t.tags = t.tags || [];
+            t.assignees = t.assignees || [];
             t.collapsed = t.collapsed || false;
             t.order = t.order || 0;
         });
@@ -241,11 +245,10 @@ export const store = {
             id: taskData.id || ('t_' + Date.now() + Math.random()), 
             shortId: finalShortId,
             status: taskData.status || 'pending',
-            urgency: taskData.urgency || 2,
-            importance: taskData.importance || 2,
             isFrog: taskData.isFrog !== undefined ? taskData.isFrog : false,
             actionType: taskData.actionType || 'NEXT',
             tags: taskData.tags || [],
+            assignees: taskData.assignees || [],
             relations: taskData.relations || [],
             collapsed: false,
             order: 0,
@@ -269,16 +272,6 @@ export const store = {
                 updatedTask.completedAt = new Date().toISOString();
             } else if (updatedTask.status !== 'done') {
                 updatedTask.completedAt = null;
-            }
-
-            // 兼容旧视图
-            if (updates.urgency || updates.importance) {
-                const u = updatedTask.urgency;
-                const i = updatedTask.importance;
-                if (u >= 4 && i >= 4) updatedTask.priority = 'urgent';
-                else if (i >= 4) updatedTask.priority = 'high';
-                else if (u >= 4) updatedTask.priority = 'medium';
-                else updatedTask.priority = 'low';
             }
 
             this.tasks[index] = updatedTask;

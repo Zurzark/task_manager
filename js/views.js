@@ -51,14 +51,14 @@ function getFilteredTasks() {
             // 只展示未完成
             if (t.status === 'done') return false;
             
-            // 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内)
+            // 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内或已过期)
             const isFrog = t.isFrog;
             const isUrgent = t.priority === 'urgent';
             let isComingSoon = false;
             if (t.dueDate) {
                 const d = new Date(t.dueDate);
                 const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
-                isComingSoon = sd >= today && sd <= in7Days;
+                isComingSoon = sd <= in7Days;
             }
             
             return isFrog || isUrgent || isComingSoon;
@@ -131,6 +131,11 @@ function getFilteredTasks() {
                     const weightA = priorityWeight[a.priority] || 2;
                     const weightB = priorityWeight[b.priority] || 2;
                     result = weightA - weightB;
+                } else if (field === 'actionType') {
+                    const actionWeight = { NEXT: 3, WAITING: 2, SOMEDAY: 1 };
+                    const weightA = actionWeight[a.actionType] || 3;
+                    const weightB = actionWeight[b.actionType] || 3;
+                    result = weightA - weightB;
                 } else {
                     // Time fields
                     const timeA = a[field] ? new Date(a[field]).getTime() : 0;
@@ -188,7 +193,7 @@ function renderSortHeader(field, label) {
     
     return `
         <th class="cursor-pointer hover:bg-gray-100 transition select-none" onclick="window.toggleSort('${field}')">
-            <div class="flex items-center gap-1 text-gray-500 font-bold">
+            <div class="flex items-center justify-center gap-1 text-gray-500 font-bold">
                 ${label}
                 <i class="${icon} text-xs"></i>
                 ${badge}
@@ -318,6 +323,22 @@ function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
         ${icon ? `<span class="text-sm">${icon}</span>` : ''}
         <span>${m}/${d} ${time}</span>
     </div>`;
+}
+
+function formatTimeColumn(task) {
+    const created = formatSmartDate(task.createdAt);
+    let completed = '<span class="text-gray-300">-</span>';
+    
+    if (task.status === 'done' && task.completedAt) {
+        completed = formatSmartDate(task.completedAt, false, true); // Use smart date logic
+    }
+    
+    return `
+        <div class="flex flex-col gap-1 items-center">
+            <div title="创建时间">${created}</div>
+            ${task.status === 'done' ? `<div title="完成时间" class="text-green-600">${completed}</div>` : ''}
+        </div>
+    `;
 }
 
 // 递归生成表格行
@@ -491,6 +512,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                                     <span class="font-medium ${isDone ? 'line-through text-gray-400' : titleColorClass} ${isFrog ? 'font-bold' : ''}">${escapeHtml(task.title)}</span>
                                     ${task.category ? `<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">#${escapeHtml(task.category)}</span>` : ''}
                                     ${(task.tags || []).map(tag => `<span class="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">@${escapeHtml(tag)}</span>`).join('')}
+                                    ${(task.assignees || []).map(p => `<span class="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded flex items-center gap-0.5"><i class="ri-user-line"></i>${escapeHtml(p)}</span>`).join('')}
                                 </div>
                                 <div class="flex gap-3 mt-1 items-center">
                                     ${task.description ? `<p class="text-xs text-gray-500 line-clamp-1 flex-1">${escapeHtml(task.description)}</p>` : ''}
@@ -526,9 +548,9 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </div>
                 </td>
 
-                <!-- 创建时间 (新列) -->
+                <!-- 创建/完成时间 (修改列) -->
                 <td class="w-32 whitespace-nowrap text-center">
-                    ${formatSmartDate(task.createdAt)}
+                    ${formatTimeColumn(task)}
                 </td>
 
                 <!-- 6. 截止时间 (含开始时间) -->
@@ -621,7 +643,7 @@ export const render = {
                                     </div>
                                 </th>
                                 
-                                <th class="w-32 text-center text-gray-500 font-bold">创建时间</th>
+                                <th class="w-32 text-center text-gray-500 font-bold">创建/完成时间</th>
                                 ${renderSortHeader('dueDate', '截止时间')}
                                 
                                 ${renderStatusHeader()}

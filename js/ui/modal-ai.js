@@ -24,6 +24,7 @@ export function openAIConfirmModal(tasks) {
         actionType: t.actionType || 'NEXT',
         isFrog: !!t.isFrog,
         tags: t.tags || [],
+        assignees: t.assignees || [], // 新增
         relations: t.relations || []
     }));
     renderAIConfirmModal();
@@ -233,12 +234,21 @@ function renderTaskItem(t, index) {
                         class="bg-transparent border-none p-0 text-xs text-gray-500 focus:ring-0 cursor-pointer hover:text-purple-600 font-medium font-mono">
                 </div>
 
-                <!-- Tags -->
-                <div class="flex items-center gap-2">
+                <!-- Tags & Assignees -->
+                <div class="flex items-center gap-2 flex-wrap">
                     ${t.tags.map((tag, i) => `
                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
                             <i class="ri-hashtag text-gray-400"></i> ${escapeHtml(tag)}
                             <button onclick="window.removeTempTaskTag('${t._tempId}', ${i})" class="hover:text-red-500 ml-0.5">
+                                <i class="ri-close-line"></i>
+                            </button>
+                        </span>
+                    `).join('')}
+                    
+                    ${(t.assignees || []).map((p, i) => `
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 hover:bg-purple-100 transition">
+                            <i class="ri-user-line text-purple-400"></i> ${escapeHtml(p)}
+                             <button onclick="window.removeTempTaskAssignee('${t._tempId}', ${i})" class="hover:text-red-500 ml-0.5">
                                 <i class="ri-close-line"></i>
                             </button>
                         </span>
@@ -313,6 +323,14 @@ export function removeTempTaskTag(tempId, index) {
     }
 }
 
+export function removeTempTaskAssignee(tempId, index) {
+    const task = window._tempParsedTasks.find(t => t._tempId === tempId);
+    if (task && task.assignees) {
+        task.assignees.splice(index, 1);
+        renderAIConfirmModal();
+    }
+}
+
 export function confirmImportTasks() {
     const toImport = window._tempParsedTasks.filter(t => t._selected);
     const tempIdMap = new Map();
@@ -329,6 +347,7 @@ export function confirmImportTasks() {
             isFrog: t.isFrog,
             dueDate: t.dueDate,
             tags: t.tags,
+            assignees: t.assignees,
             // System fields
             id: newUuid,
             parentId: null, 
@@ -400,4 +419,5 @@ export function confirmImportTasks() {
 window.toggleTempTask = toggleTempTask;
 window.updateTempTask = updateTempTask;
 window.removeTempTaskTag = removeTempTaskTag;
+window.removeTempTaskAssignee = removeTempTaskAssignee;
 window.confirmImportTasks = confirmImportTasks;

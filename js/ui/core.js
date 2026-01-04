@@ -2,6 +2,7 @@ import { store } from '../store.js';
 import { memoryStore } from '../memory.js';
 import { render } from '../views.js';
 import { escapeHtml } from '../utils.js'; 
+import '../ui/tag-input.js'; // 引入 Tag Input 逻辑
 
 export function updateUI() {
     const view = store.currentViewMode || 'list';
