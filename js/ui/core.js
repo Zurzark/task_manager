@@ -60,25 +60,35 @@ export function updateUI() {
 }
 
 export function updateCounts() {
-    // 侧边栏计数
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+    // 侧边栏计数（统一东八区）
+    const now = new Date();
+    const shanghaiNowStr = now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' });
+    const today = new Date(shanghaiNowStr); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
     const in7Days = new Date(today); in7Days.setDate(today.getDate() + 7);
 
     // 今日焦点逻辑：
     // 1. 未完成
-    // 2. 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内)
+    // 2. 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内 或 今日创建的任务)
     const todayCount = store.tasks.filter(t => {
         if (t.status === 'done') return false;
         
         const isFrog = t.isFrog;
         const isUrgent = t.priority === 'urgent';
         let isComingSoon = false;
+        let isCreatedToday = false;
         if (t.dueDate) {
             const d = new Date(t.dueDate);
-            isComingSoon = d >= today && d <= in7Days;
+            const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+            isComingSoon = sd >= today && sd <= in7Days;
+        }
+        if (t.createdAt) {
+            const c = new Date(t.createdAt);
+            const sc = new Date(c.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+            isCreatedToday = sc >= today && sc < tomorrow;
         }
         
-        return isFrog || isUrgent || isComingSoon;
+        return isFrog || isUrgent || isComingSoon || isCreatedToday;
     }).length;
 
     const allCount = store.tasks.length;

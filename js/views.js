@@ -51,17 +51,24 @@ function getFilteredTasks() {
             // 只展示未完成
             if (t.status === 'done') return false;
             
-            // 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内或已过期)
+            // 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内 或 今日创建的任务)
             const isFrog = t.isFrog;
             const isUrgent = t.priority === 'urgent';
             let isComingSoon = false;
+            let isCreatedToday = false;
             if (t.dueDate) {
                 const d = new Date(t.dueDate);
                 const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
-                isComingSoon = sd <= in7Days;
+                isComingSoon = sd >= today && sd <= in7Days;
+            }
+            if (t.createdAt) {
+                const c = new Date(t.createdAt);
+                const sc = new Date(c.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+                isCreatedToday = sc >= today && sc < tomorrow;
             }
             
-            return isFrog || isUrgent || isComingSoon;
+            return isFrog || isUrgent || isComingSoon || isCreatedToday;
         });
     } else if (viewFilter === 'completed') {
         filtered = filtered.filter(t => t.status === 'done');
