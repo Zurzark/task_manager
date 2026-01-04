@@ -1,6 +1,6 @@
 import { store } from './store.js';
 import { memoryStore } from './memory.js';
-import { updateUI, renderCategoryList } from './ui/core.js';
+import { updateUI, renderCategoryList, handleInputKeyup } from './ui/core.js';
 import { handleAIParse } from './features/ai.js';
 import { setupBackupListeners } from './features/backup.js';
 import './actions.js'; // Import for window side-effects
@@ -48,6 +48,14 @@ function initUI() {
                 e.preventDefault();
                 handleAIParse();
             }
+        });
+                // ↓↓↓↓↓↓↓↓↓ 新增：绑定 @ 引用监听 ↓↓↓↓↓↓↓↓↓
+        taskInput.addEventListener('keyup', handleInputKeyup);
+        
+        // 点击输入框外部关闭弹窗
+        taskInput.addEventListener('click', () => {
+             const picker = document.getElementById('task-picker');
+             if (picker) picker.classList.add('hidden');
         });
     }
 

@@ -1,0 +1,71 @@
+(function fixDuplicateShortIds() {
+    console.log("🚀 开始修复 ShortID...");
+
+    // 1. 读取数据
+    const tasksRaw = localStorage.getItem('tasks_v3');
+    const configRaw = localStorage.getItem('config_v3');
+
+    if (!tasksRaw) {
+        console.error("❌ 未找到任务数据 (tasks_v3)");
+        return;
+    }
+
+    let tasks = JSON.parse(tasksRaw);
+    let config = configRaw ? JSON.parse(configRaw) : { nextShortId: 1 };
+
+    // 2. 按创建时间排序 (确保 ID 增长符合时间逻辑)
+    tasks.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    // 3. 重新分配 ID 并建立映射表
+    const uuidToNewShortIdMap = new Map();
+    let counter = 1;
+
+    console.log(`📋 正在重置 ${tasks.length} 个任务的 ID...`);
+
+    tasks.forEach(task => {
+        const oldId = task.shortId;
+        const newId = counter++;
+        
+        task.shortId = newId;
+        uuidToNewShortIdMap.set(task.id, newId); // 记录 UUID -> 新 ShortID 的关系
+    });
+
+    // 4. 修复关联关系 (Relations)
+    // 父子关系通常通过 parentId (UUID) 绑定，不受 shortId 影响，无需修复
+    // 但 relations 数组中显式存储了 targetShortId，必须修复
+    let relationFixCount = 0;
+
+    tasks.forEach(task => {
+        if (task.relations && Array.isArray(task.relations)) {
+            task.relations.forEach(rel => {
+                // 如果有关联目标 UUID
+                if (rel.targetId) {
+                    const newTargetShortId = uuidToNewShortIdMap.get(rel.targetId);
+                    // 如果找到了新的 ID，且与旧的不一致，则更新
+                    if (newTargetShortId && rel.targetShortId !== newTargetShortId) {
+                        rel.targetShortId = newTargetShortId;
+                        relationFixCount++;
+                    }
+                }
+            });
+        }
+    });
+
+    console.log(`🔗 修复了 ${relationFixCount} 个关联关系的引用 ID`);
+
+    // 5. 更新配置中的 nextShortId
+    config.nextShortId = counter;
+    console.log(`🔢 下一个可用 ID 重置为: ${counter}`);
+
+    // 6. 保存回 LocalStorage
+    localStorage.setItem('tasks_v3', JSON.stringify(tasks));
+    localStorage.setItem('config_v3', JSON.stringify(config));
+
+    console.log("✅ 修复完成！页面即将刷新...");
+    
+    // 7. 自动刷新页面以应用更改
+    setTimeout(() => {
+        window.location.reload();
+    }, 1000);
+
+})();

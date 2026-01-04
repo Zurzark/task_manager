@@ -5,12 +5,14 @@ import { openSettingsModal, openLogsModal, switchSettingsTab, savePrompt, setAct
 import { openMemoryModal, switchMemoryTab, saveMemoryProfile, saveMemoryConfig, openAddMemoryModal, saveNewMemory, toggleMemory, editMemory, saveEditedMemory, deleteMemory, organizeMemories } from './ui/modal-memory.js';
 import { openAIConfirmModal, toggleTempTask, confirmImportTasks } from './ui/modal-ai.js';
 import { getShanghaiInputValue } from './utils.js';
+import { insertTaskRef } from './ui/core.js';
 
 // Map imported functions to window
 window.addRelationRow = addRelationRow;
 window.triggerEdit = openTaskModal; // Alias
 window.saveTaskEdit = saveTaskEdit;
 window.deleteTaskAndClose = deleteTaskAndClose;
+window.insertTaskRef = insertTaskRef;
 
 window.openSettingsModal = openSettingsModal; 
 window.switchSettingsTab = switchSettingsTab;
