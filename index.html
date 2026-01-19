@@ -172,6 +172,8 @@
 
                 <!-- 新增：筛选工具栏 (调整位置) -->
                 <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-4 bg-gray-50/50 flex-wrap">
+
+
                     <!-- 青蛙筛选 -->
                     <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none hover:text-green-700 transition">
                         <input type="checkbox" id="filter-frog" class="rounded text-green-600 focus:ring-green-500" onchange="window.toggleFrogFilter(this.checked)">
@@ -257,6 +259,8 @@
 
                     <div class="h-4 w-px bg-gray-300 mx-2"></div>
 
+
+
                     <!-- 创建时间筛选 (新增) -->
                     <div class="flex items-center gap-2 text-sm group/created">
                         <span class="text-gray-500 border-b border-dashed border-gray-300 cursor-help" title="按任务创建时间筛选">创建:</span>
@@ -280,6 +284,23 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="h-4 w-px bg-gray-300 mx-2"></div>
+
+                    <!-- 关键词搜索 -->
+                    <div class="relative group/search">
+                        <i class="ri-search-line absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" 
+                            id="keyword-search-input"
+                            placeholder="搜索..." 
+                            class="pl-8 pr-7 py-1 text-sm border border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded-md bg-transparent transition outline-none w-32 focus:w-64"
+                            oninput="window.updateKeywordFilter(this.value)">
+                        <button id="btn-clear-search" 
+                            onclick="window.clearKeywordFilter()"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden">
+                            <i class="ri-close-line"></i>
+                        </button>
                     </div>
                 </div>
 

@@ -476,3 +476,33 @@ window.updatePriority = (id, priority) => {
     store.updateTask(id, { priority });
     updateUI();
 };
+
+window.updateKeywordFilter = (keyword) => {
+    store.keywordFilter = keyword;
+    store.pagination.list.page = 1; // Reset pagination
+    
+    // Toggle clear button
+    const btn = document.getElementById('btn-clear-search');
+    if (btn) {
+        if (keyword && keyword.trim().length > 0) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+    
+    updateUI();
+};
+
+window.clearKeywordFilter = () => {
+    store.keywordFilter = '';
+    store.pagination.list.page = 1;
+    
+    const input = document.getElementById('keyword-search-input');
+    if (input) input.value = '';
+    
+    const btn = document.getElementById('btn-clear-search');
+    if (btn) btn.classList.add('hidden');
+    
+    updateUI();
+};

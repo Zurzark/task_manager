@@ -110,6 +110,7 @@ export const store = {
     config: { ...DEFAULT_CONFIG },
     viewFilter: 'today',
     categoryFilter: null,
+    keywordFilter: '', // 新增：关键词搜索
     frogFilter: false, // 新增：青蛙筛选
     actionTypeFilter: 'all', // 新增：行动项筛选
     dateRangeFilter: null, // 新增：日期范围筛选 { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }

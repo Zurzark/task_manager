@@ -34,8 +34,148 @@ function getStatusConfig(status) {
     return map[status] || map.pending;
 }
 
+// 辅助：匹配搜索查询 (支持 AND/OR/NOT/括号)
+function matchSearchQuery(task, query) {
+    // 1. 准备搜索内容
+    const content = [
+        task.title || '',
+        task.description || '',
+        task.category || '',
+        ...(task.tags || [])
+    ].join(' ').toLowerCase();
+
+    // 2. Tokenize (支持: ( ) & | ! 和 普通词)
+    // 逻辑：
+    // - 空格视为 AND (如果在两个词之间)
+    // - & 或 AND 视为 AND
+    // - | 或 OR 视为 OR
+    // - ! 或 - 或 NOT 视为 NOT
+    
+    // 简单分词器
+    const tokens = [];
+    let current = '';
+    
+    for (let i = 0; i < query.length; i++) {
+        const char = query[i];
+        
+        // 1. 括号, &, |, ! 总是作为分隔符
+        if (['(', ')', '&', '|', '!'].includes(char)) {
+            if (current) { tokens.push(current); current = ''; }
+            tokens.push(char);
+        } 
+        // 2. - 号：只有在 current 为空时（即词首）才视为分隔符(NOT)，否则视为连字符
+        else if (char === '-') {
+            if (current) {
+                current += char;
+            } else {
+                tokens.push(char);
+            }
+        }
+        // 3. 空白字符
+        else if (/\s/.test(char)) {
+            if (current) { tokens.push(current); current = ''; }
+        } 
+        // 4. 普通字符
+        else {
+            current += char;
+        }
+    }
+    if (current) tokens.push(current);
+
+    // 3. 预处理 tokens (处理 AND/OR/NOT 别名，插入隐式 AND)
+    const normalizedTokens = [];
+    const isOperator = t => ['&', '|', '!', '(', ')'].includes(t);
+    const isWord = t => !isOperator(t);
+    
+    for (let i = 0; i < tokens.length; i++) {
+        let t = tokens[i];
+        const lower = t.toLowerCase();
+        
+        if (lower === 'and') t = '&';
+        else if (lower === 'or') t = '|';
+        else if (lower === 'not' || t === '-') t = '!';
+        
+        // 隐式 AND: Word Word -> Word & Word
+        // Word ( -> Word & (
+        // ) Word -> ) & Word
+        if (normalizedTokens.length > 0) {
+            const last = normalizedTokens[normalizedTokens.length - 1];
+            // Cases needing implicit AND:
+            // 1. Word Word
+            // 2. Word (
+            // 3. Word !
+            // 4. ) Word
+            // 5. ) (
+            // 6. ) !
+            const lastIsWordOrClose = isWord(last) || last === ')';
+            const currIsWordOrOpenOrNot = isWord(t) || t === '(' || t === '!';
+            
+            if (lastIsWordOrClose && currIsWordOrOpenOrNot) {
+                normalizedTokens.push('&');
+            }
+        }
+        normalizedTokens.push(t);
+    }
+
+    // 4. Shunting Yard Algorithm (Infix -> RPN)
+    const outputQueue = [];
+    const operatorStack = [];
+    const precedence = { '!': 3, '&': 2, '|': 1, '(': 0 };
+
+    normalizedTokens.forEach(token => {
+        if (isWord(token)) {
+            outputQueue.push(token);
+        } else if (token === '(') {
+            operatorStack.push(token);
+        } else if (token === ')') {
+            while (operatorStack.length && operatorStack[operatorStack.length - 1] !== '(') {
+                outputQueue.push(operatorStack.pop());
+            }
+            operatorStack.pop(); // Pop '('
+        } else { // Operator
+            while (
+                operatorStack.length &&
+                operatorStack[operatorStack.length - 1] !== '(' &&
+                precedence[operatorStack[operatorStack.length - 1]] >= precedence[token]
+            ) {
+                outputQueue.push(operatorStack.pop());
+            }
+            operatorStack.push(token);
+        }
+    });
+    while (operatorStack.length) {
+        outputQueue.push(operatorStack.pop());
+    }
+
+    // 5. Evaluate RPN
+    const evalStack = [];
+    
+    try {
+        outputQueue.forEach(token => {
+            if (isWord(token)) {
+                evalStack.push(content.includes(token.toLowerCase()));
+            } else if (token === '!') {
+                const a = evalStack.pop();
+                evalStack.push(!a);
+            } else if (token === '&') {
+                const b = evalStack.pop();
+                const a = evalStack.pop();
+                evalStack.push(a && b);
+            } else if (token === '|') {
+                const b = evalStack.pop();
+                const a = evalStack.pop();
+                evalStack.push(a || b);
+            }
+        });
+    } catch (e) {
+        return false; // Error in evaluation
+    }
+
+    return evalStack.length > 0 ? evalStack[0] : true;
+}
+
 function getFilteredTasks() {
-    const { tasks, viewFilter, categoryFilter, sortState, statusFilter, frogFilter, actionTypeFilter, dateRangeFilter } = store;
+    const { tasks, viewFilter, categoryFilter, sortState, statusFilter, frogFilter, actionTypeFilter, dateRangeFilter, keywordFilter } = store;
     
     // 统一使用东八区时间投影进行比较
     const now = new Date();
@@ -44,6 +184,12 @@ function getFilteredTasks() {
     const in7Days = new Date(today); in7Days.setDate(today.getDate() + 7);
 
     let filtered = [...tasks];
+
+    // 0. 关键词搜索 (高级模式：支持与或非及括号)
+    if (keywordFilter && keywordFilter.trim()) {
+        const query = keywordFilter.trim();
+        filtered = filtered.filter(t => matchSearchQuery(t, query));
+    }
 
     // 1. 视图筛选 (viewFilter)
     if (viewFilter === 'today') {
