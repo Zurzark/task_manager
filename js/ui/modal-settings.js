@@ -47,12 +47,28 @@ export function renderSettingsModalContent() {
                             <p class="text-xs text-gray-500 mt-1">每天工作的结束时间 (默认截止时间)</p>
                         </div>
                     </div>
+                    <div class="border-t my-6 border-gray-100"></div>
+
+                    <h4 class="font-bold mb-4 text-gray-700">智能延时设置</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">延时选项 (分钟)</label>
+                            <input type="text" id="setting-snooze-presets" value="${(store.config.snoozePresets || [5, 15, 30, 60, 180]).join(', ')}" class="w-full border rounded p-2 text-sm" placeholder="如: 5, 15, 30">
+                            <p class="text-xs text-gray-500 mt-1">自定义"稍后提醒"的时间间隔，用逗号分隔</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">明天提醒时间</label>
+                            <input type="time" id="setting-snooze-tomorrow" value="${store.config.snoozeTomorrowTime || '09:00'}" class="w-full border rounded p-2 text-sm">
+                            <p class="text-xs text-gray-500 mt-1">"明天提醒"选项的具体时间点</p>
+                        </div>
+                    </div>
+
                     <div class="flex justify-end">
                         <button onclick="window.saveGeneralSettings()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存设置</button>
                     </div>
                 </div>
 
-                <div class="${settingsTab === 'api' ? '' : 'hidden'} grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="${settingsTab === 'api' ? 'grid grid-cols-1 md:grid-cols-2 gap-6' : 'hidden'}">
                     <div class="border-r pr-4">
                         <div class="space-y-2 max-h-96 overflow-y-auto">
                             ${store.config.apis.map(api => `
@@ -130,9 +146,21 @@ export function saveGeneralSettings() {
     const start = document.getElementById('setting-work-start').value;
     const end = document.getElementById('setting-work-end').value;
     
+    const snoozePresetsStr = document.getElementById('setting-snooze-presets').value;
+    const snoozeTomorrow = document.getElementById('setting-snooze-tomorrow').value;
+
     if (!start || !end) return alert('请填写完整的时间');
     
+    // Parse presets
+    const presets = snoozePresetsStr.split(/[,，]/).map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+    
+    if (presets.length === 0) return alert('请至少配置一个延时选项');
+    if (!snoozeTomorrow) return alert('请配置明天提醒时间');
+    
     store.config.workHours = { start, end };
+    store.config.snoozePresets = presets;
+    store.config.snoozeTomorrowTime = snoozeTomorrow;
+    
     store.saveConfig();
     alert('设置已保存');
 }

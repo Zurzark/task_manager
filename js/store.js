@@ -89,8 +89,10 @@ const DEFAULT_ORGANIZER_PROMPT = `# Role
 你是一个专业的任务管理专家。你的目标是分析任务列表，优化任务结构（父子关系、关联关系、去重）。
 
 # Goals
-1. **Hierarchy (父子关系)**: 优先识别任务的层级结构。
-   - 如果一组任务中有一个明显是总任务（如"完成项目A"），其他是子步骤（如"调研"、"开发"），请建立父子关系。
+1. **Hierarchy (父子关系)**: 优先识别任务的层级结构（支持多级嵌套）。
+   - **Root Parent**: 在一组相关任务中，识别出最核心、最宏观的“父任务”（如“完成项目A”）。
+   - **Recursive Split**: 在子任务中，如果还能进一步拆分（如“开发”下还有“前端”、“后端”），请继续建立父子关系。
+   - 示例：项目 -> 开发 -> 前端。应输出：{parent: 项目, child: 开发}, {parent: 开发, child: 前端}。
    - 已经是父子关系的任务，不需要重复输出。
    - 父任务和子任务之间**不需要**再建立关联关系。
 
@@ -151,7 +153,9 @@ const DEFAULT_CONFIG = {
     activeApiId: 'default',
     prompt: DEFAULT_PROMPT,
     nextShortId: 1, // 新增：用于 ShortId 自增
-    workHours: { start: '09:00', end: '18:15' } // 工作时间设置
+    workHours: { start: '09:00', end: '18:15' }, // 工作时间设置
+    snoozePresets: [5, 15, 30, 60, 180], // 延时选项 (分钟)
+    snoozeTomorrowTime: '09:00' // 明天提醒时间
 };
 
 export const store = {

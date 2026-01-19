@@ -155,13 +155,13 @@ function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
     const d = sd.getDate().toString().padStart(2, '0');
     const time = sd.getHours().toString().padStart(2, '0') + ':' + sd.getMinutes().toString().padStart(2, '0');
     
-    let colorClass = 'text-gray-600';
+    let colorClass = 'text-gray-600 font-bold'; // 默认加粗
     let icon = ''; 
     let text = `${m}/${d} ${time}`; 
 
     if (isDueDate) {
         if (isDone) {
-            colorClass = 'text-gray-400 line-through';
+            colorClass = 'text-gray-400 line-through font-bold';
             text = `${m}/${d}`; 
         } else {
             if (diffDays < 0) {
@@ -173,13 +173,48 @@ function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
             } else if (diffDays === 0) {
                 text = '今天';
                 colorClass = 'text-orange-600 font-bold';
+                icon = '⏰';
             } else if (diffDays === 1) {
                 text = '明天';
-                colorClass = 'text-blue-600';
+                colorClass = 'text-blue-600 font-bold';
+                icon = '🚀';
+            } else if (diffDays === 2) {
+                text = '后天';
+                colorClass = 'text-blue-600 font-bold';
+                icon = '🔭';
+            } else if (diffDays >= 3 && diffDays <= 7) {
+                // Determine This Week vs Next Week
+                const dayOfWeek = sd.getDay(); // 0 (Sun) - 6 (Sat)
+                const todayDayOfWeek = todaySd.getDay(); // 0 (Sun) - 6 (Sat)
+                
+                // Calculate week start dates (assuming Monday is start of week)
+                // Actually easier: check if they are in the same ISO week
+                // Or: Calculate "End of this week" (Sunday)
+                // If target <= End of this week => "本周X"
+                // Else => "下周X"
+                
+                // Adjust Sunday to be 7 for easier math if week starts Monday
+                const todayDayAdjusted = todayDayOfWeek === 0 ? 7 : todayDayOfWeek;
+                const daysUntilSunday = 7 - todayDayAdjusted;
+                const endOfWeekSd = new Date(todaySd);
+                endOfWeekSd.setDate(todaySd.getDate() + daysUntilSunday);
+                
+                const chineseDays = ['日', '一', '二', '三', '四', '五', '六'];
+                const dayChar = chineseDays[dayOfWeek];
+                
+                if (targetSd <= endOfWeekSd) {
+                    text = `本周${dayChar}`;
+                    colorClass = 'text-blue-600 font-bold';
+                } else {
+                    text = `下周${dayChar}`;
+                    colorClass = 'text-purple-600 font-bold'; // Distinct color for next week
+                }
+
+                icon = '📅';
             } else {
-                // Future
-                text = `${m}/${d}`;
-                colorClass = 'text-gray-500';
+                // Future (> 7 days)
+                text = `${sd.getMonth() + 1}月${sd.getDate()}日`;
+                colorClass = 'text-gray-500 font-bold';
             }
         }
     } else {

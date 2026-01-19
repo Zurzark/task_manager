@@ -192,18 +192,28 @@ function renderOrganizerModal() {
                     </button>
                 </div>
                 
-                <div class="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Column 1: Duplicates -->
+                <div class="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Column 1: Hierarchy -->
                     <div class="flex flex-col min-h-0">
                         <h4 class="font-bold text-gray-700 mb-3 flex items-center gap-2">
-                            <i class="ri-file-copy-2-line text-orange-500"></i> 重复任务建议
+                            <i class="ri-node-tree text-orange-500"></i> 层级结构建议
+                        </h4>
+                        <div class="overflow-y-auto flex-1 pr-2">
+                            ${hierarchyHtml}
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Duplicates -->
+                    <div class="flex flex-col min-h-0 border-l pl-6 border-gray-100">
+                        <h4 class="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                            <i class="ri-file-copy-2-line text-purple-500"></i> 重复任务建议
                         </h4>
                         <div class="overflow-y-auto flex-1 pr-2">
                             ${duplicatesHtml}
                         </div>
                     </div>
 
-                    <!-- Column 2: Relations -->
+                    <!-- Column 3: Relations -->
                     <div class="flex flex-col min-h-0 border-l pl-6 border-gray-100">
                         <h4 class="font-bold text-gray-700 mb-3 flex items-center gap-2">
                             <i class="ri-links-line text-blue-500"></i> 关联任务建议
@@ -241,7 +251,40 @@ export function toggleOrganizerItem(type, index) {
 export function executeOrganization() {
     let changeCount = 0;
 
-    // 1. Process Duplicates
+    // Helper: Detect Cycle (DFS)
+    // Check if assigning childId to parentId would create a cycle
+    // (i.e. if parentId is already a descendant of childId)
+    const wouldCreateCycle = (childId, newParentId) => {
+        let current = findTask(newParentId);
+        while (current && current.parentId) {
+            if (current.parentId === childId) return true; // Found the child in the ancestry chain
+            current = findTask(current.parentId);
+        }
+        return false;
+    };
+
+    // 1. Process Hierarchy (Parent-Child)
+    selectedHierarchy.forEach(index => {
+        const item = analysisResult.parentChild[index];
+        const parent = findTask(item.parentId);
+        const child = findTask(item.childId);
+
+        if (parent && child) {
+            // Prevent self-reference
+            if (parent.id === child.id) return;
+            
+            // Prevent cycle
+            if (wouldCreateCycle(child.id, parent.id)) {
+                console.warn(`Skipping cycle: ${child.title} -> ${parent.title}`);
+                return;
+            }
+
+            store.updateTask(child.id, { parentId: parent.id });
+            changeCount++;
+        }
+    });
+
+    // 2. Process Duplicates
     selectedDuplicates.forEach(index => {
         const item = analysisResult.duplicates[index];
         const keepTask = findTask(item.keepId);

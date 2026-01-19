@@ -36,13 +36,14 @@ function checkReminders() {
 
 function calculateSnoozeTime(type) {
     const now = new Date();
-    if (type === 'tomorrow_9') {
+    if (type === 'tomorrow') {
         const d = new Date();
         d.setDate(d.getDate() + 1);
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
-        return new Date(`${y}-${m}-${day}T09:00:00+08:00`);
+        const timeStr = store.config.snoozeTomorrowTime || '09:00';
+        return new Date(`${y}-${m}-${day}T${timeStr}:00+08:00`);
     } else {
         const minutes = parseInt(type);
         return new Date(now.getTime() + minutes * 60000);
@@ -57,6 +58,24 @@ function showReminderModal(tasks) {
         document.body.appendChild(wrapper);
     }
     
+    // Generate options dynamically
+    const presets = store.config.snoozePresets || [5, 15, 30, 60, 180];
+    const tomorrowTime = store.config.snoozeTomorrowTime || '09:00';
+    
+    const optionsHtml = presets.map(min => {
+        let label = min + ' 分钟后';
+        if (min >= 60) {
+            const h = Math.floor(min / 60);
+            const m = min % 60;
+            label = h + ' 小时' + (m > 0 ? m + ' 分钟' : '') + '后';
+        }
+        return `<option value="${min}">${label}</option>`;
+    }).join('');
+    
+    const tomorrowOption = `<option value="tomorrow">明天 ${tomorrowTime}</option>`;
+    const allOptions = `<option value="" disabled selected>稍后提醒...</option>` + optionsHtml + tomorrowOption;
+    const allOptionsForBatch = `<option value="" disabled selected>全部稍后提醒...</option>` + optionsHtml + tomorrowOption;
+
     const listHtml = tasks.map(t => `
         <div class="group p-4 bg-white rounded-xl border border-gray-100 shadow-sm mb-3 hover:shadow-md transition-all hover:border-blue-100">
             <div class="flex items-start justify-between gap-3 mb-3">
@@ -77,13 +96,7 @@ function showReminderModal(tasks) {
                     <div class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 rounded-lg px-2 py-1.5 border border-gray-200 transition-colors cursor-pointer">
                         <i class="ri-zzz-line text-blue-500"></i>
                         <select onchange="window.snoozeReminder('${t.id}', this.value)" class="w-full bg-transparent border-none text-sm text-gray-600 focus:ring-0 cursor-pointer py-0 pl-0 appearance-none">
-                            <option value="" disabled selected>稍后提醒...</option>
-                            <option value="5">5 分钟后</option>
-                            <option value="15">15 分钟后</option>
-                            <option value="30">30 分钟后</option>
-                            <option value="60">1 小时后</option>
-                            <option value="180">3 小时后</option>
-                            <option value="tomorrow_9">明天 09:00</option>
+                            ${allOptions}
                         </select>
                         <i class="ri-arrow-down-s-line text-gray-400 text-xs pointer-events-none absolute right-2"></i>
                     </div>
@@ -120,12 +133,7 @@ function showReminderModal(tasks) {
                         <div class="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-lg px-3 py-2.5 transition-colors cursor-pointer group">
                             <i class="ri-timer-flash-line text-gray-500 group-hover:text-gray-700"></i>
                             <select onchange="window.snoozeAllReminders(this.value)" class="w-full bg-transparent border-none text-sm text-gray-600 font-medium focus:ring-0 cursor-pointer py-0 pl-0 appearance-none">
-                                <option value="" disabled selected>全部稍后提醒...</option>
-                                <option value="5">5 分钟后</option>
-                                <option value="15">15 分钟后</option>
-                                <option value="30">30 分钟后</option>
-                                <option value="60">1 小时后</option>
-                                <option value="tomorrow_9">明天 09:00</option>
+                                ${allOptionsForBatch}
                             </select>
                             <i class="ri-arrow-up-s-line text-gray-400 text-xs pointer-events-none absolute right-3"></i>
                         </div>
