@@ -342,7 +342,13 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
             : `<span class="w-6 mr-2 inline-block flex justify-center"><i class="ri-checkbox-blank-circle-fill text-[4px] text-gray-300"></i></span>`; // 叶子节点显示小点
 
         html += `
-            <tr class="group transition-colors ${rowBgClass}">
+            <tr class="group transition-colors ${rowBgClass}"
+                draggable="true"
+                ondragstart="window.handleDragStart(event, '${task.id}')"
+                ondragover="window.handleDragOver(event, '${task.id}')"
+                ondragleave="window.handleDragLeave(event, '${task.id}')"
+                ondrop="window.handleDrop(event, '${task.id}')"
+                ondragend="window.handleDragEnd(event)">
                 <!-- 1. 选择列 -->
                 <td class="w-10 text-center">
                     <input type="checkbox" 
@@ -505,7 +511,7 @@ export const render = {
                             <tr>
                                 <th class="w-10 text-center">
                                     <input type="checkbox" id="select-all-checkbox-table" 
-                                        onchange="document.getElementById('select-all-checkbox').click()"
+                                        onchange="window.toggleSelectAll()"
                                         class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                                 </th>
                                 <th class="w-12 text-center text-gray-500 font-bold">🐸</th>

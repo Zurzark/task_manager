@@ -319,3 +319,22 @@
     border-style: solid;
     border-color: #1f2937 transparent transparent transparent;
 }
+
+/* ============ Drag and Drop ============ */
+.drop-target {
+    background-color: #e0e7ff !important;
+    outline: 2px dashed #6366f1;
+    outline-offset: -2px;
+}
+
+/* Header Drop Target (Visual Feedback) */
+thead.drop-target-root {
+    background-color: #f3f4f6;
+    outline: 2px dashed #9ca3af;
+    outline-offset: -2px;
+}
+
+/* Global Drop Target (Visual Feedback for Root Drop) */
+body.dragging-active #app {
+    cursor: copy; /* Indicate copy/move */
+}

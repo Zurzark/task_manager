@@ -517,3 +517,148 @@ window.clearKeywordFilter = () => {
     
     updateUI();
 };
+
+// ============ 拖拽排序/层级管理 ============
+let draggedTaskId = null;
+
+// Helper: 检查是否产生循环引用 (检查 targetId 是否是 possibleParentId 的后代)
+function isDescendant(possibleParentId, targetId) {
+    if (possibleParentId === targetId) return true; // Self check
+    
+    let current = store.tasks.find(t => t.id === targetId);
+    while (current && current.parentId) {
+        if (current.parentId === possibleParentId) return true;
+        current = store.tasks.find(t => t.id === current.parentId);
+    }
+    return false;
+}
+
+window.handleDragStart = (e, taskId) => {
+    draggedTaskId = taskId;
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox requires setData
+    e.dataTransfer.setData('text/plain', taskId);
+    
+    // Add a slight delay to add 'dragging' class for visual feedback if needed
+    setTimeout(() => {
+        const row = e.target.closest('tr');
+        if (row) row.classList.add('opacity-50');
+    }, 0);
+};
+
+window.handleDragOver = (e, taskId) => {
+    e.preventDefault(); // Allow drop
+    e.stopPropagation(); // Prevent container dragover
+
+    if (!draggedTaskId || draggedTaskId === taskId) return;
+    
+    // Check circular dependency: if I drag A to B, B cannot be a child of A
+    if (isDescendant(draggedTaskId, taskId)) {
+        e.dataTransfer.dropEffect = 'none';
+        return;
+    }
+    
+    e.dataTransfer.dropEffect = 'move';
+    
+    const row = e.currentTarget;
+    row.classList.add('drop-target');
+};
+
+window.handleDragLeave = (e, taskId) => {
+    const row = e.currentTarget;
+    row.classList.remove('drop-target');
+};
+
+window.handleDrop = (e, taskId) => {
+    e.preventDefault();
+    e.stopPropagation(); // Stop bubbling to container
+    
+    const row = e.currentTarget;
+    row.classList.remove('drop-target');
+    
+    if (!draggedTaskId || draggedTaskId === taskId) return;
+    
+    // Final circular check
+    if (isDescendant(draggedTaskId, taskId)) return;
+    
+    const task = store.tasks.find(t => t.id === draggedTaskId);
+    if (task) {
+        // Update parent
+        task.parentId = taskId;
+        
+        // Ensure parent is not collapsed so we can see the dropped item
+        const parentTask = store.tasks.find(t => t.id === taskId);
+        if (parentTask) parentTask.collapsed = false;
+
+        store.saveData();
+        updateUI();
+    }
+    
+    draggedTaskId = null;
+};
+
+window.handleDragEnd = (e) => {
+    draggedTaskId = null;
+    const row = e.target.closest('tr');
+    if (row) row.classList.remove('opacity-50');
+    
+    // Cleanup any stuck drop-targets
+    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+};
+
+// Container handlers (Move to Root)
+window.handleContainerDragOver = (e) => {
+    e.preventDefault();
+    if (!draggedTaskId) return;
+    e.dataTransfer.dropEffect = 'move';
+};
+
+window.handleContainerDrop = (e) => {
+    e.preventDefault();
+    if (!draggedTaskId) return;
+    
+    const task = store.tasks.find(t => t.id === draggedTaskId);
+    if (task && task.parentId) {
+        task.parentId = null; // Make root
+        store.saveData();
+        updateUI();
+    }
+    draggedTaskId = null;
+};
+
+// Global Root handlers (for #app)
+window.handleRootDragOver = (e) => {
+    // Only allow if dragging a task
+    if (!draggedTaskId) return;
+    
+    // If the event target is inside a specific drop zone (like a task row),
+    // the stopPropagation in handleDragOver should have prevented this.
+    // So if we reach here, we are likely over "empty space".
+    
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    // Optional: Visual feedback for root drop
+    // Check if we are over the header
+    const thead = e.target.closest('thead');
+    if (thead) {
+        thead.classList.add('drop-target-root');
+    } else {
+        // Clear header highlight if we moved out of it but still in root zone
+        document.querySelectorAll('.drop-target-root').forEach(el => el.classList.remove('drop-target-root'));
+    }
+};
+
+window.handleRootDrop = (e) => {
+    e.preventDefault();
+    if (!draggedTaskId) return;
+    
+    const task = store.tasks.find(t => t.id === draggedTaskId);
+    if (task && task.parentId) {
+        task.parentId = null; // Make root
+        store.saveData();
+        updateUI();
+    }
+    draggedTaskId = null;
+    document.querySelectorAll('.drop-target-root').forEach(el => el.classList.remove('drop-target-root'));
+};

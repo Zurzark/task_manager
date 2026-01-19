@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能任务管理器 - AI Powered v3.1</title>
+    <title>智能任务管理器 - AI Powered v3.3</title>
     <script src="js/tailwindcss.js"></script>
     <link href="css/remixicon.css" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
@@ -28,7 +28,7 @@
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <div id="app" class="flex h-screen">
+    <div id="app" class="flex h-screen" ondragover="window.handleRootDragOver(event)" ondrop="window.handleRootDrop(event)">
         <!-- 左侧边栏 (保持不变) -->
         <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
             <div class="p-4 border-b border-gray-200">
@@ -36,7 +36,7 @@
                     <i class="ri-task-line text-blue-500"></i>
                     智能任务管理
                 </h1>
-                <p class="text-xs text-gray-400 mt-1">AI Powered v3.1</p>
+                <p class="text-xs text-gray-400 mt-1">AI Powered v3.3</p>
             </div>
             
             <nav class="flex-1 p-4 space-y-2 overflow-auto">
