@@ -85,6 +85,56 @@ const DEFAULT_PROMPT = `# Role
 ]
 `;
 
+const DEFAULT_ORGANIZER_PROMPT = `# Role
+你是一个专业的任务管理专家。你的目标是分析任务列表，优化任务结构（父子关系、关联关系、去重）。
+
+# Goals
+1. **Hierarchy (父子关系)**: 优先识别任务的层级结构。
+   - 如果一组任务中有一个明显是总任务（如"完成项目A"），其他是子步骤（如"调研"、"开发"），请建立父子关系。
+   - 已经是父子关系的任务，不需要重复输出。
+   - 父任务和子任务之间**不需要**再建立关联关系。
+
+2. **Duplicates (去重)**: 找出语义重复的任务。
+   - 建议保留信息更全、创建时间更早的任务。
+   - 建议合并信息较少或重复的任务。
+
+3. **Association (关联与依赖)**: 找出子任务之间或其他任务之间的逻辑关系。
+   - **依赖 (depends_on)**: 有明确的先后顺序（如 A 必须在 B 之前完成）。
+   - **关联 (related_to)**: 内容相关但无严格顺序。
+   - 已经是父子关系的任务之间，**不要**建立关联。
+   - 如果已存在正确的关联，**不要**重复输出。
+
+# Input Format
+你将收到一个 JSON 任务列表。
+
+# Output Format
+必须仅输出一个符合 JSON 语法的对象 (不要 Markdown 标记)。
+{
+  "parentChild": [
+    {
+      "parentId": "Parent Task ID (use 'id' field)",
+      "childId": "Child Task ID (use 'id' field)",
+      "reason": "Why this is a parent-child relationship"
+    }
+  ],
+  "duplicates": [
+    {
+      "keepId": "ID of the task to keep (use 'id' field)",
+      "mergeId": "ID of the task to merge/delete (use 'id' field)",
+      "reason": "Why they are duplicates"
+    }
+  ],
+  "relations": [
+    {
+      "sourceId": "Source Task ID",
+      "targetId": "Target Task ID",
+      "type": "depends_on" | "related_to",
+      "reason": "Why they are related/dependent"
+    }
+  ]
+}
+`;
+
 const DEFAULT_CONFIG = {
     apis: [
         { 
@@ -190,6 +240,7 @@ export const store = {
             // 修复旧数据结构
             t.tags = t.tags || [];
             t.assignees = t.assignees || [];
+            if (t.reminderDismissed === undefined) { t.reminderDismissed = false; hasChanges = true; }
             t.collapsed = t.collapsed || false;
             t.order = t.order || 0;
         });
@@ -215,6 +266,10 @@ export const store = {
             // 强制更新 Prompt 到最新版本 (包含负数ID规则 和 is_frog)
             if (!this.config.prompt.includes('负数 ID') || !this.config.prompt.includes('is_frog')) {
                 this.config.prompt = DEFAULT_PROMPT;
+            }
+            // 确保 organizerPrompt 存在
+            if (!this.config.organizerPrompt) {
+                this.config.organizerPrompt = DEFAULT_ORGANIZER_PROMPT;
             }
         }
     },
@@ -251,6 +306,7 @@ export const store = {
             tags: taskData.tags || [],
             assignees: taskData.assignees || [],
             relations: taskData.relations || [],
+            reminderDismissed: false,
             collapsed: false,
             order: 0,
             createdAt: new Date().toISOString(),
@@ -273,6 +329,11 @@ export const store = {
                 updatedTask.completedAt = new Date().toISOString();
             } else if (updatedTask.status !== 'done') {
                 updatedTask.completedAt = null;
+            }
+
+            // 如果更新了 reminderTime，重置 reminderDismissed
+            if (updates.reminderTime && updates.reminderTime !== oldTask.reminderTime) {
+                updatedTask.reminderDismissed = false;
             }
 
             this.tasks[index] = updatedTask;
@@ -390,5 +451,289 @@ export const store = {
         
         this.saveConfig();
         return true;
+    },
+
+    // 辅助：匹配搜索查询 (支持 AND/OR/NOT/括号)
+    _matchSearchQuery(task, query) {
+        // 1. 准备搜索内容
+        const content = [
+            task.title || '',
+            task.description || '',
+            task.category || '',
+            ...(task.tags || [])
+        ].join(' ').toLowerCase();
+
+        // 2. Tokenize (支持: ( ) & | ! 和 普通词)
+        const tokens = [];
+        let current = '';
+        
+        for (let i = 0; i < query.length; i++) {
+            const char = query[i];
+            
+            // 1. 括号, &, |, ! 总是作为分隔符
+            if (['(', ')', '&', '|', '!'].includes(char)) {
+                if (current) { tokens.push(current); current = ''; }
+                tokens.push(char);
+            } 
+            // 2. - 号：只有在 current 为空时（即词首）才视为分隔符(NOT)，否则视为连字符
+            else if (char === '-') {
+                if (current) {
+                    current += char;
+                } else {
+                    tokens.push(char);
+                }
+            }
+            // 3. 空白字符
+            else if (/\s/.test(char)) {
+                if (current) { tokens.push(current); current = ''; }
+            } 
+            // 4. 普通字符
+            else {
+                current += char;
+            }
+        }
+        if (current) tokens.push(current);
+
+        // 3. 预处理 tokens (处理 AND/OR/NOT 别名，插入隐式 AND)
+        const normalizedTokens = [];
+        const isOperator = t => ['&', '|', '!', '(', ')'].includes(t);
+        const isWord = t => !isOperator(t);
+        
+        for (let i = 0; i < tokens.length; i++) {
+            let t = tokens[i];
+            const lower = t.toLowerCase();
+            
+            if (lower === 'and') t = '&';
+            else if (lower === 'or') t = '|';
+            else if (lower === 'not' || t === '-') t = '!';
+            
+            // 隐式 AND: Word Word -> Word & Word
+            if (normalizedTokens.length > 0) {
+                const last = normalizedTokens[normalizedTokens.length - 1];
+                const lastIsWordOrClose = isWord(last) || last === ')';
+                const currIsWordOrOpenOrNot = isWord(t) || t === '(' || t === '!';
+                
+                if (lastIsWordOrClose && currIsWordOrOpenOrNot) {
+                    normalizedTokens.push('&');
+                }
+            }
+            normalizedTokens.push(t);
+        }
+
+        // 4. Shunting Yard Algorithm (Infix -> RPN)
+        const outputQueue = [];
+        const operatorStack = [];
+        const precedence = { '!': 3, '&': 2, '|': 1, '(': 0 };
+
+        normalizedTokens.forEach(token => {
+            if (isWord(token)) {
+                outputQueue.push(token);
+            } else if (token === '(') {
+                operatorStack.push(token);
+            } else if (token === ')') {
+                while (operatorStack.length && operatorStack[operatorStack.length - 1] !== '(') {
+                    outputQueue.push(operatorStack.pop());
+                }
+                operatorStack.pop(); // Pop '('
+            } else { // Operator
+                while (
+                    operatorStack.length &&
+                    operatorStack[operatorStack.length - 1] !== '(' &&
+                    precedence[operatorStack[operatorStack.length - 1]] >= precedence[token]
+                ) {
+                    outputQueue.push(operatorStack.pop());
+                }
+                operatorStack.push(token);
+            }
+        });
+        while (operatorStack.length) {
+            outputQueue.push(operatorStack.pop());
+        }
+
+        // 5. Evaluate RPN
+        const evalStack = [];
+        
+        try {
+            outputQueue.forEach(token => {
+                if (isWord(token)) {
+                    evalStack.push(content.includes(token.toLowerCase()));
+                } else if (token === '!') {
+                    const a = evalStack.pop();
+                    evalStack.push(!a);
+                } else if (token === '&') {
+                    const b = evalStack.pop();
+                    const a = evalStack.pop();
+                    evalStack.push(a && b);
+                } else if (token === '|') {
+                    const b = evalStack.pop();
+                    const a = evalStack.pop();
+                    evalStack.push(a || b);
+                }
+            });
+        } catch (e) {
+            return false; // Error in evaluation
+        }
+
+        return evalStack.length > 0 ? evalStack[0] : true;
+    },
+
+    getFilteredTasks() {
+        const { tasks, viewFilter, categoryFilter, sortState, statusFilter, frogFilter, actionTypeFilter, dateRangeFilter, keywordFilter } = this;
+        
+        // 统一使用东八区时间投影进行比较
+        const now = new Date();
+        const shanghaiNowStr = now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' });
+        const today = new Date(shanghaiNowStr); today.setHours(0, 0, 0, 0);
+        const in7Days = new Date(today); in7Days.setDate(today.getDate() + 7);
+
+        let filtered = [...tasks];
+
+        // 0. 关键词搜索 (高级模式：支持与或非及括号)
+        if (keywordFilter && keywordFilter.trim()) {
+            const query = keywordFilter.trim();
+            filtered = filtered.filter(t => this._matchSearchQuery(t, query));
+        }
+
+        // 1. 视图筛选 (viewFilter)
+        if (viewFilter === 'today') {
+            filtered = filtered.filter(t => {
+                // 只展示未完成 (且未取消)
+                if (t.status === 'done' || t.status === 'cancelled') return false;
+                
+                // 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内 或 今日创建的任务)
+                const isFrog = t.isFrog;
+                const isUrgent = t.priority === 'urgent';
+                let isComingSoon = false;
+                let isCreatedToday = false;
+                if (t.dueDate) {
+                    const d = new Date(t.dueDate);
+                    const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                    isComingSoon = sd >= today && sd <= in7Days;
+                }
+                if (t.createdAt) {
+                    const c = new Date(t.createdAt);
+                    const sc = new Date(c.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+                    isCreatedToday = sc >= today && sc < tomorrow;
+                }
+                
+                return isFrog || isUrgent || isComingSoon || isCreatedToday;
+            });
+        } else if (viewFilter === 'completed') {
+            filtered = filtered.filter(t => t.status === 'done');
+        } else if (viewFilter === 'pending') {
+            filtered = filtered.filter(t => t.status !== 'done' && t.status !== 'cancelled');
+        } else if (viewFilter === 'archived') {
+            filtered = filtered.filter(t => t.status === 'cancelled');
+        } else if (viewFilter === 'all') {
+            // all view shows all tasks (including done)
+        }
+        
+        // 2. 分类筛选
+        if (categoryFilter) {
+            filtered = filtered.filter(t => t.category === categoryFilter);
+        }
+        
+        // 3. 状态筛选 (多选)
+        if (statusFilter && statusFilter.length > 0) {
+            filtered = filtered.filter(t => statusFilter.includes(t.status));
+        }
+
+        // 4. 新增：青蛙筛选
+        if (frogFilter) {
+            filtered = filtered.filter(t => t.isFrog);
+        }
+
+        // 5. 新增：行动项筛选
+        if (actionTypeFilter && actionTypeFilter !== 'all') {
+            filtered = filtered.filter(t => t.actionType === actionTypeFilter);
+        }
+
+        // 6. 新增：日期范围筛选 (基于截止时间 - 东八区)
+        if (dateRangeFilter && dateRangeFilter.start && dateRangeFilter.end) {
+            filtered = filtered.filter(t => {
+                if (!t.dueDate) return false;
+                const d = new Date(t.dueDate);
+                const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                const y = sd.getFullYear();
+                const m = String(sd.getMonth()+1).padStart(2,'0');
+                const day = String(sd.getDate()).padStart(2,'0');
+                const dStr = `${y}-${m}-${day}`;
+                return dStr >= dateRangeFilter.start && dStr <= dateRangeFilter.end;
+            });
+        }
+
+        // 7. 新增：创建时间筛选 (基于东八区)
+        if (this.createdAtRangeFilter && this.createdAtRangeFilter.start && this.createdAtRangeFilter.end) {
+            filtered = filtered.filter(t => {
+                if (!t.createdAt) return false;
+                const d = new Date(t.createdAt);
+                const sd = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                const y = sd.getFullYear();
+                const m = String(sd.getMonth()+1).padStart(2,'0');
+                const day = String(sd.getDate()).padStart(2,'0');
+                const dStr = `${y}-${m}-${day}`;
+                return dStr >= this.createdAtRangeFilter.start && dStr <= this.createdAtRangeFilter.end;
+            });
+        }
+        
+        // 8. 多字段排序
+        if (sortState && sortState.length > 0) {
+            filtered.sort((a, b) => {
+                for (const sort of sortState) {
+                    const { field, direction } = sort;
+                    let result = 0;
+                    
+                    if (field === 'priority') {
+                        const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
+                        const weightA = priorityWeight[a.priority] || 2;
+                        const weightB = priorityWeight[b.priority] || 2;
+                        result = weightA - weightB;
+                    } else if (field === 'actionType') {
+                        const actionWeight = { NEXT: 3, WAITING: 2, SOMEDAY: 1 };
+                        const weightA = actionWeight[a.actionType] || 3;
+                        const weightB = actionWeight[b.actionType] || 3;
+                        result = weightA - weightB;
+                    } else {
+                        // Time fields
+                        const timeA = a[field] ? new Date(a[field]).getTime() : 0;
+                        const timeB = b[field] ? new Date(b[field]).getTime() : 0;
+                        if (timeA === 0 && timeB === 0) result = 0;
+                        else if (timeA === 0) result = 1; 
+                        else if (timeB === 0) result = -1; 
+                        else result = timeA - timeB;
+                    }
+                    
+                    if (result !== 0) {
+                        return direction === 'asc' ? result : -result;
+                    }
+                }
+                return 0;
+            });
+        } else {
+            // Fallback default sort
+             const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
+             filtered.sort((a, b) => {
+                 // 1. First by Frog (Yes > No)
+                 if (a.isFrog !== b.isFrog) return a.isFrog ? -1 : 1;
+                 
+                 // 2. Then by Priority (Urgent > High > Medium > Low)
+                 const wa = priorityWeight[a.priority] || 2;
+                 const wb = priorityWeight[b.priority] || 2;
+                 if (wa !== wb) return wb - wa; 
+
+                 // 3. Then by Due Date (Ascending, earlier first)
+                 const timeA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+                 const timeB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+                 
+                 if (timeA === 0 && timeB === 0) return 0;
+                 if (timeA === 0) return 1; // No date -> Bottom
+                 if (timeB === 0) return -1; // No date -> Bottom
+                 
+                 return timeA - timeB;
+             });
+        }
+        
+        return filtered;
     }
 };

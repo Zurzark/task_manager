@@ -105,7 +105,12 @@ export function renderSettingsModalContent() {
 
                 <div class="${settingsTab === 'prompt' ? '' : 'hidden'}">
                     <p class="text-sm text-gray-500 mb-2">自定义 AI 解析任务的系统提示词。请保留 JSON 格式要求。</p>
-                    <textarea id="settings-prompt" rows="12" class="w-full border rounded p-3 text-sm font-mono bg-gray-50">${store.config.prompt}</textarea>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">通用解析 Prompt</label>
+                    <textarea id="settings-prompt" rows="8" class="w-full border rounded p-3 text-sm font-mono bg-gray-50 mb-4">${store.config.prompt}</textarea>
+                    
+                    <label class="block text-sm font-bold text-gray-700 mb-1">智能整理 Prompt</label>
+                    <textarea id="settings-organizer-prompt" rows="8" class="w-full border rounded p-3 text-sm font-mono bg-gray-50">${store.config.organizerPrompt || ''}</textarea>
+
                     <div class="mt-4 flex justify-end">
                         <button onclick="window.savePrompt()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">保存 Prompt</button>
                     </div>
@@ -134,7 +139,11 @@ export function saveGeneralSettings() {
 
 export function savePrompt() {
     const newPrompt = document.getElementById('settings-prompt').value;
+    const newOrganizerPrompt = document.getElementById('settings-organizer-prompt').value;
+    
     store.config.prompt = newPrompt;
+    store.config.organizerPrompt = newOrganizerPrompt;
+    
     store.saveConfig();
     alert('Prompt 已保存');
 }

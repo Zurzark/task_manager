@@ -67,7 +67,7 @@
                 </button>
                 
                 <div class="pt-4 mt-4 border-t border-gray-200">
-                    <p class="text-xs text-gray-400 uppercase tracking-wider mb-2">AI 记忆</p>
+                    <p class="text-xs text-gray-400 uppercase tracking-wider mb-2">AI 助手</p>
                     <button id="btn-memory" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-gray-100 transition">
                         <i class="ri-brain-line text-purple-500"></i>
                         <span>我的记忆</span>
@@ -147,7 +147,7 @@
                         <!-- 列表视图下的全选框 -->
                         <div id="list-header-actions" class="hidden flex items-center gap-2 ml-4 pl-4 border-l border-gray-300">
                             <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                                <input type="checkbox" id="select-all-checkbox" class="rounded text-blue-500 focus:ring-blue-500">
+                                <input type="checkbox" id="select-all-checkbox" class="rounded text-blue-500 focus:ring-blue-500" onchange="window.toggleSelectAll(this.checked)">
                                 全选
                             </label>
                         </div>
@@ -320,6 +320,11 @@
             <div id="batch-action-bar" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-6 hidden z-40 transition-all duration-300">
                 <span class="text-sm font-medium">已选择 <span id="selected-count">0</span> 项</span>
                 <div class="h-4 w-px bg-gray-700"></div>
+                
+                <button id="btn-batch-organize" onclick="window.startOrganizer()" class="hover:text-indigo-400 flex items-center gap-1 text-sm transition" title="智能整理选中任务">
+                    <i class="ri-magic-line"></i> 智能整理
+                </button>
+
                 <button onclick="window.batchComplete()" class="hover:text-green-400 flex items-center gap-1 text-sm transition">
                     <i class="ri-check-double-line"></i> 标记完成
                 </button>

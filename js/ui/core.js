@@ -44,7 +44,15 @@ export function updateUI() {
     // 更新全选框状态
     const selectAll = document.getElementById('select-all-checkbox');
     if (selectAll) {
-        selectAll.checked = store.tasks.length > 0 && store.selectedTaskIds.size === store.tasks.length;
+        const visibleTasks = store.getFilteredTasks();
+        // 只有当有可见任务，且所有可见任务都被选中时，全选框才打勾
+        // 注意：这里我们假设“全选”是指当前视图下的全选
+        const isAllSelected = visibleTasks.length > 0 && visibleTasks.every(t => store.selectedTaskIds.has(t.id));
+        selectAll.checked = isAllSelected;
+        
+        // 可选：处理 indeterminate 状态 (部分选中)
+        const hasSomeSelected = visibleTasks.some(t => store.selectedTaskIds.has(t.id));
+        selectAll.indeterminate = hasSomeSelected && !isAllSelected;
     }
 
     // 批量操作栏显示

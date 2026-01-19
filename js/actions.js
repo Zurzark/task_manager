@@ -1,5 +1,6 @@
 import { store } from './store.js';
 import { updateUI } from './ui/core.js';
+import { getFilteredTasks } from './views.js';
 import { openTaskModal, saveTaskEdit, deleteTaskAndClose, addRelationRow } from './ui/modal-task.js';
 import { openSettingsModal, openLogsModal, switchSettingsTab, savePrompt, setActiveApi, editApi, resetEditForm, deleteApi, saveApiForm, saveGeneralSettings } from './ui/modal-settings.js';
 import { openMemoryModal, switchMemoryTab, saveMemoryProfile, saveMemoryConfig, openAddMemoryModal, saveNewMemory, toggleMemory, editMemory, saveEditedMemory, deleteMemory, organizeMemories } from './ui/modal-memory.js';
@@ -209,6 +210,16 @@ window.toggleSelection = (id) => {
 
 window.clearSelection = () => {
     store.selectedTaskIds.clear();
+    updateUI();
+};
+
+window.toggleSelectAll = (checked) => {
+    const tasks = getFilteredTasks();
+    if (checked) {
+        tasks.forEach(t => store.selectedTaskIds.add(t.id));
+    } else {
+        store.selectedTaskIds.clear();
+    }
     updateUI();
 };
 

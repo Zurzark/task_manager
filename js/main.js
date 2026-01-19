@@ -7,6 +7,8 @@ import './actions.js'; // Import for window side-effects
 import { openMemoryModal } from './ui/modal-memory.js';
 import { openSettingsModal, openLogsModal } from './ui/modal-settings.js';
 import { handleQuickAdd } from './actions.js';
+import { startOrganizer } from './features/ai-organizer.js';
+import { initReminderCheck } from './features/reminder.js';
 
 // ============ 初始化与UI更新 ============
 
@@ -14,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     store.init();
     memoryStore.init();
     initUI();
+    initReminderCheck();
     updateUI();
 });
 
