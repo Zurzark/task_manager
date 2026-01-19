@@ -30,7 +30,8 @@ export function updateUI() {
         'today': '今日焦点',
         'all': '全部任务',
         'completed': '已完成',
-        'pending': '未完成'
+        'pending': '未完成',
+        'archived': '已归档'
     };
     const titleEl = document.getElementById('view-title');
     if (titleEl) {
@@ -68,10 +69,10 @@ export function updateCounts() {
     const in7Days = new Date(today); in7Days.setDate(today.getDate() + 7);
 
     // 今日焦点逻辑：
-    // 1. 未完成
+    // 1. 未完成 (且未取消)
     // 2. 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内 或 今日创建的任务)
     const todayCount = store.tasks.filter(t => {
-        if (t.status === 'done') return false;
+        if (t.status === 'done' || t.status === 'cancelled') return false;
         
         const isFrog = t.isFrog;
         const isUrgent = t.priority === 'urgent';
@@ -93,13 +94,16 @@ export function updateCounts() {
 
     const allCount = store.tasks.length;
     const completedCount = store.tasks.filter(t => t.status === 'done').length;
-    const pendingCount = store.tasks.filter(t => t.status !== 'done').length;
+    const pendingCount = store.tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length;
+    const archivedCount = store.tasks.filter(t => t.status === 'cancelled').length;
     
     document.getElementById('today-count').textContent = todayCount;
     document.getElementById('all-count').textContent = allCount;
     document.getElementById('completed-count').textContent = completedCount;
     const pendingEl = document.getElementById('pending-count');
     if (pendingEl) pendingEl.textContent = pendingCount;
+    const archivedEl = document.getElementById('archived-count');
+    if (archivedEl) archivedEl.textContent = archivedCount;
     
     // 记忆库计数
     const memCount = memoryStore.memories.length;

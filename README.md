@@ -1,147 +1,139 @@
 # 智能任务管理器 (Smart Task Manager) - AI Powered v3.1
 
-## 项目概述
-基于原生 JavaScript (ES Modules) 构建的现代化任务管理应用，集成 AI 智能解析、四象限管理、记忆库系统与本地隐私存储。本项目旨在提供轻量、高效且智能的任务管理体验。
+## 📖 项目概述
+**Smart Task Manager** 是一个基于原生 JavaScript (ES Modules) 构建的现代化、无服务器(Serverless)的任务管理应用。它深度集成了 AI 智能解析能力，结合 GTD (Getting Things Done) 与四象限工作法，旨在提供轻量、高效且隐私安全的个人任务管理解决方案。
 
-## 核心功能
-- **多视图交互**: 支持列表(List)、看板(Kanban)、日历(Calendar)、四象限(Quadrant)四种视图切换。
-- **AI 智能解析**: 集成 LLM API，支持自然语言一键生成结构化任务（自动识别时间、优先级、子任务、关联关系）。
-- **长期记忆库**: 内置 Memory 系统，记录用户偏好与工作习惯，辅助 AI 更精准地理解指令。
-- **隐私优先**: 所有数据存储于浏览器 LocalStorage，支持全量 JSON 备份与恢复。
-- **任务高级属性**: 支持青蛙任务(Frog)、行动项(Action Type)、子任务嵌套、任务依赖关系管理。
+本项目坚持 **"No Build"** 理念，无需 Node.js 构建流程，开箱即用，代码结构清晰，适合学习原生 JS 架构或作为个人生产力工具使用。
 
 ---
 
-### 一、完整项目文件结构 (File Structure)
+## ✨ 核心功能
+
+### 1. 🤖 AI 智能增强
+- **自然语言交互**: 在输入框直接输入 "明天上午10点开会 @#12"，AI 自动识别时间、关联任务、优先级。
+- **智能上下文**: 内置 RAG (检索增强生成) 机制，根据任务描述自动检索相关的"记忆片段"，辅助 AI 更精准地理解用户意图。
+- **记忆库系统**: 记录用户的长期偏好、工作习惯或项目背景，AI 会在解析任务时参考这些信息。
+
+### 2. 📊 多维视图管理
+- **列表视图 (List)**: 经典清单模式，支持批量操作、拖拽排序。
+- **看板视图 (Kanban)**: 类似 Trello 的状态流转管理 (待开始 -> 进行中 -> 已完成)。
+- **日历视图 (Calendar)**: 基于时间的月/周视图，直观展示任务排期。
+- **四象限视图 (Quadrant)**: 基于重要/紧急程度的矩阵管理，聚焦"重要且紧急"的事务。
+
+### 3. 🎯 高级任务属性
+- **GTD 行动体系**: 支持 `Next` (下一步), `Waiting` (等待), `Someday` (将来) 等行动属性。
+- **青蛙任务 (Frog)**: 标记每日最重要的 "三只青蛙"，优先击破。
+- **依赖管理**: 支持任务间的父子关系与阻塞依赖，通过 `@#ID` 语法快速关联。
+- **标签系统**: 灵活的 Tag 管理，支持多维度分类。
+
+### 4. 🔍 强大的筛选与交互
+- **组合筛选**: 支持按状态、行动类型、青蛙标记、创建时间范围、截止时间范围等多维度组合筛选。
+- **批量操作**: 列表视图下支持多选任务，进行批量完成、批量删除。
+- **快捷键支持**: `Ctrl+Enter` 快速触发 AI 解析。
+
+### 5. 🛡️ 数据隐私与安全
+- **本地存储**: 所有数据存储于浏览器 `LocalStorage`，不上传任何服务器（除调用 LLM API 外）。
+- **备份恢复**: 支持全量数据导出为 JSON 文件，随时备份或迁移数据。
+
+---
+
+## 📂 项目文件结构
 
 ```text
-d:\小工具\web_project\
-├── index.html                  # [入口] 应用主页面，DOM 结构容器
+d:\小工具\web_project\task_manager\
+├── index.html                  # [入口] 应用主页面，包含整体 DOM 结构与 UI 骨架
 ├── css/
-│   ├── style.css               # 全局自定义样式
-│   └── remixicon.css           # 图标库样式
+│   ├── style.css               # 全局自定义样式与 Tailwind 补丁
+│   └── remixicon.css           # 图标库资源
 ├── js/
-│   ├── main.js                 # [入口] JS 主入口，负责初始化与模块装载
-│   ├── actions.js              # [关键] 全局动作注册，将模块方法绑定到 window 对象 (适配 HTML onclick)
-│   ├── store.js                # [核心] 任务数据状态管理 (Store)，负责 CRUD 与持久化
-│   ├── memory.js               # [核心] AI 记忆库管理 (MemoryStore)，负责用户画像与记忆片段
-│   ├── views.js                # [视图] 纯函数组件，根据数据生成各视图的 HTML 字符串
-│   ├── api.js                  # [服务] LLM API 调用封装
-│   ├── utils.js                # [工具] 通用辅助函数 (时间格式化、ID生成、JSON解析)
-│   ├── ui/                     # [UI模块] 拆分自原 main.js
-│   │   ├── core.js             # UI 核心逻辑 (updateUI, renderCategoryList)
+│   ├── main.js                 # [启动] 应用入口，负责初始化、全局事件监听
+│   ├── actions.js              # [桥接] 将模块方法暴露给 window 对象 (适配 HTML onclick)
+│   ├── store.js                # [数据] 核心状态管理 (Store)，负责 CRUD 与持久化
+│   ├── memory.js               # [记忆] AI 记忆库管理 (MemoryStore)
+│   ├── views.js                # [渲染] 纯函数组件，生成各视图的 HTML 字符串
+│   ├── api.js                  # [服务] LLM API 调用封装 (Fetch Wrapper)
+│   ├── utils.js                # [工具] 通用辅助函数 (时间、ID、JSON处理)
+│   ├── tailwindcss.js          # [库] 本地集成的 Tailwind CSS 引擎
+│   │
+│   ├── ui/                     # [界面] UI 交互逻辑拆分
+│   │   ├── core.js             # UI 核心调度 (updateUI, 侧边栏统计)
 │   │   ├── modal-task.js       # 任务编辑/详情弹窗逻辑
-│   │   ├── modal-settings.js   # 设置与日志弹窗逻辑
-│   │   ├── modal-memory.js     # 记忆库管理弹窗逻辑
-│   │   └── modal-ai.js         # AI 解析结果确认弹窗逻辑
-│   └── features/               # [功能模块] 独立业务逻辑
-│       ├── ai.js               # AI 任务解析流程控制
+│   │   ├── modal-settings.js   # 设置、API配置、日志弹窗
+│   │   ├── modal-memory.js     # 记忆库管理弹窗
+│   │   ├── modal-ai.js         # AI 确认弹窗
+│   │   └── tag-input.js        # 标签输入组件逻辑
+│   │
+│   └── features/               # [业务] 独立业务模块
+│       ├── ai.js               # AI 解析流程控制 (Prompt构建 -> 调用 -> 回调)
 │       └── backup.js           # 数据备份与恢复逻辑
-└── README.md                   # 项目说明文档
+└── README.md                   # 本文档
 ```
 
 ---
 
-### 二、整体代码核心逻辑梳理
+## 🛠️ 技术架构说明
 
-#### 1. 主入口与执行流程
-- **启动流程**: `index.html` 加载 `js/main.js` (type="module") -> `main.js` 初始化 `store` 和 `memoryStore` -> 加载 `initUI()` 绑定事件 -> 调用 `updateUI()` 首次渲染。
-- **事件响应**: 用户点击 HTML 元素 (如 `onclick="window.handleQuickAdd()"`) -> 触发 `js/actions.js` 中绑定的全局函数 -> 调用对应模块 (如 `js/features/ai.js`) -> 更新 `store` 数据 -> 触发 `updateUI()` 重绘视图。
+### 1. 模块化设计 (ES Modules)
+项目完全采用 ES6 Modules 规范，通过 `<script type="module">` 引入。
+- **解耦**: 业务逻辑 (`features/`)、UI 逻辑 (`ui/`) 和数据层 (`store.js`) 分离。
+- **桥接**: 由于 Module 作用域隔离，`actions.js` 充当桥梁，将需要 HTML `onclick` 调用的函数挂载到 `window` 全局对象。
 
-#### 2. 核心模块分工
-- **Store (`js/store.js`)**: 
-  - 单例模式，维护 `this.tasks` (任务列表) 和 `this.config` (配置)。
-  - 提供 `addTask`, `updateTask`, `deleteTask` 等原子操作，操作后自动同步 LocalStorage。
-  - 维护视图状态 (`currentViewMode`, `viewFilter`, `sortState`)。
-- **Views (`js/views.js`)**: 
-  - 包含 `list()`, `kanban()`, `calendar()`, `quadrant()` 四个渲染函数。
-  - 接收过滤后的任务数据，返回 HTML 字符串，**不包含业务逻辑**。
-- **UI Core (`js/ui/core.js`)**:
-  - `updateUI()`: 整个应用的渲染引擎，根据当前状态调用对应的 View 函数并注入 DOM。
-  - `updateCounts()`: 计算并更新侧边栏的任务统计数字。
+### 2. 状态管理 (Store Pattern)
+`js/store.js` 实现了一个简易的响应式 Store：
+- 维护 `tasks` (任务数据) 和 `config` (用户配置)。
+- 所有数据变更 (Add/Update/Delete) 必须通过 Store 方法触发。
+- Store 操作完成后自动同步 `LocalStorage` 并触发 UI 更新。
 
-#### 3. 关键业务规则
-- **任务ID**: 使用 `t_{timestamp}_{counter}_{random}` 格式确保唯一性。
-- **时间处理**: 所有时间存储为 ISO 字符串 (UTC)，显示时转换为东八区 (Shanghai) 时间。
-- **AI 解析**: 用户输入 -> 构建 Prompt (含记忆+引用任务) -> 调用 LLM -> 解析返回的 JSON -> 弹出确认框 -> 用户确认后写入 Store。
+### 3. AI 工作流 (RAG Lite)
+1. **User Input**: 用户输入自然语言指令。
+2. **Context Retrieval**: `memoryStore` 检索相关的用户记忆。
+3. **Prompt Engineering**: 结合当前任务列表(用于引用)和记忆，构建 Prompt。
+4. **LLM Execution**: 调用配置的 LLM API。
+5. **Human-in-the-loop**: 解析结果展示给用户确认，修正后再写入 Store。
 
 ---
 
-### 三、本次全量代码&文件改动详情 (Refactoring Details)
+## 🚀 快速开始
 
-**重构目标**: 将臃肿的 `main.js` (>1800行) 按功能拆分为模块化结构，提升可维护性，保持原有功能 100% 不变。
+### 1. 环境准备
+- 只需要一个现代浏览器 (Chrome, Edge, Firefox 等)。
+- **推荐**: 使用 VS Code 的 **Live Server** 插件运行，以避免 `file://` 协议下的模块跨域安全限制。
 
-#### 1. 目录结构调整
-- **新增** `js/ui/` 目录：存放所有 UI 交互与弹窗逻辑。
-- **新增** `js/features/` 目录：存放独立的功能业务逻辑。
+### 2. 运行项目
+1. 克隆或下载本项目。
+2. 在项目根目录启动 HTTP 服务 (如 `python -m http.server` 或 Live Server)。
+3. 浏览器访问 `http://localhost:5500/index.html`。
 
-#### 2. 文件改动明细
-
-| 文件路径 | 改动类型 | 改动核心内容 | 目的/解决问题 |
-| :--- | :--- | :--- | :--- |
-| `js/main.js` | **重构** | 移除所有业务逻辑，仅保留 `init()` 调用、事件监听绑定和模块导入。代码量从 1800+ 降至 ~100 行。 | 作为纯粹的入口文件，解耦逻辑。 |
-| `js/actions.js` | **新增** | 引入所有业务模块方法，并将其赋值给 `window` 对象 (e.g., `window.toggleTaskComplete = ...`)。 | **关键**：解决 ES Module 作用域隔离导致 HTML 中 `onclick` 无法访问函数的问题。 |
-| `js/ui/core.js` | **新增** | 包含 `updateUI`, `updateCounts`, `renderCategoryList`。 | 集中管理 UI 渲染与更新逻辑。 |
-| `js/ui/modal-task.js` | **新增** | 包含 `openTaskModal`, `saveTaskEdit`, `deleteTaskAndClose`, `addRelationRow`。 | 封装任务编辑弹窗的复杂 DOM 操作与数据收集逻辑。 |
-| `js/ui/modal-settings.js` | **新增** | 包含设置弹窗、API 配置管理、日志查看逻辑。 | 独立管理配置相关 UI。 |
-| `js/ui/modal-memory.js` | **新增** | 包含记忆库的增删改查 UI 逻辑及 AI 整理功能调用。 | 独立管理记忆模块 UI。 |
-| `js/ui/modal-ai.js` | **新增** | 包含 `openAIConfirmModal`, `confirmImportTasks`。 | 处理 AI 解析结果的确认交互。 |
-| `js/features/ai.js` | **新增** | 包含 `handleAIParse` 核心流程。 | 封装 AI 调用、Context 构建、结果解析流程。 |
-| `js/features/backup.js` | **新增** | 包含 `setupBackupListeners` (导出/导入)。 | 独立管理数据备份逻辑。 |
-| `js/utils.js` | **修改** | 新增 `getShanghaiInputValue` (时间转换), `extractJsonFromResponse` (AI 响应清洗)。 | 提取复用逻辑，减少代码重复。 |
+### 3. 配置 AI
+1. 点击左侧边栏底部的 **"设置"**。
+2. 输入你的 LLM API 地址 (Base URL) 和 API Key。
+3. 选择模型 (如 `gpt-4o`, `deepseek-chat` 等)。
+4. 保存配置。
 
 ---
 
-### 四、核心文件/关键函数 详细说明
+## 📝 开发指南
 
-#### 1. `js/actions.js` (The Bridge)
-由于本项目使用原生 ES Modules (`<script type="module">`)，模块内的函数不再自动暴露到全局作用域。为了兼容现有的 HTML `onclick="window.func()"` 写法，`actions.js` 显式地将模块导出的函数挂载到 `window` 对象上。
-- **注意**: 任何在 HTML 中被调用的函数，**必须**在此文件中注册。
+如果你想为项目贡献代码或进行二次开发：
 
-#### 2. `js/features/ai.js` (AI Core)
-- **`handleAIParse()`**:
-    1. 获取用户输入。
-    2. `extractReferences()`: 识别 `@#ID` 引用。
-    3. `memoryStore.buildAIContext()`: 检索相关记忆。
-    4. 构建最终 Prompt。
-    5. `callAI()`: 请求 LLM。
-    6. `openAIConfirmModal()`: 展示结果供用户确认。
+1. **修改 UI**: 
+   - 页面骨架在 `index.html`。
+   - 视图渲染逻辑在 `js/views.js` (生成 HTML 字符串)。
+   - 交互逻辑在 `js/ui/*.js`。
 
-#### 3. `js/ui/modal-task.js` (Task Editor)
-- **`openTaskModal(id)`**: 动态生成模态框 HTML，回显任务数据。处理复杂的表单状态（如滑块、日期选择器、关联任务下拉框）。
-- **`saveTaskEdit(id)`**: 从 DOM 元素收集所有字段值，进行类型转换（如日期转 ISO），调用 `store.updateTask()`。
+2. **修改业务**:
+   - 任务数据结构定义在 `js/store.js`。
+   - AI 解析逻辑在 `js/features/ai.js`。
+
+3. **新增全局事件**:
+   - 如果你在 HTML 中写了 `onclick="window.myFunc()"`, 必须在 `js/actions.js` 中引入并挂载 `myFunc`。
 
 ---
 
-### 五、项目依赖与环境说明
-- **运行环境**: 现代浏览器 (Chrome/Edge/Firefox)，需支持 ES Modules。
-- **依赖库**: 
-  - 无 Node.js 依赖，无构建步骤 (No Build Step)。
-  - `tailwindcss.js` (CDN/Local): 样式引擎。
-  - `remixicon.css`: 图标库。
-- **服务器**: 建议使用 Live Server 或类似工具运行，避免 file:// 协议跨域限制 (虽然本项目主要依赖 LocalStorage，但 Module 加载可能受限)。
+## ⚠️ 注意事项
+- **数据安全**: 清除浏览器缓存会丢失所有数据，请务必定期使用 "备份" 功能下载 JSON 文件。
+- **兼容性**: 依赖 ES6+ 特性，不支持 IE 浏览器。
+- **Token 消耗**: 记忆库越多，发送给 AI 的 Context 越长，请关注 Token 使用情况 (可在"调用记录"中查看)。
 
 ---
-
-### 六、代码注意事项 & 风险点 & 待优化项
-
-#### 1. 注意事项
-- **全局污染**: `js/actions.js` 有意污染了全局作用域 (`window`)，这是为了保持 HTML 结构的简洁性（避免重写所有事件监听）。在新增功能时，请遵循此模式。
-- **时区问题**: 存储层统一使用 UTC (ISO String)，展示层和输入层统一强制转换为 Asia/Shanghai。修改时间处理逻辑时需小心。
-
-#### 2. 潜在风险
-- **LocalStorage 限制**: 数据量过大（如数万条任务或大量记忆）可能触达 5MB 限制。建议定期通过备份功能导出数据。
-- **AI Token 消耗**: `memoryStore` 会在每次 AI 请求中注入相关记忆，若记忆库过大且策略配置不当，可能导致 Token 消耗激增。
-
-#### 3. 待优化项
-- **虚拟列表**: 目前列表视图为全量渲染（虽有分页），任务数极多时 DOM 操作可能有性能瓶颈。
-- **移动端适配**: 虽然使用了 Tailwind 响应式类，但部分复杂弹窗在移动端体验仍有优化空间。
-
----
-
-### 七、Cursor 适配提示 (For AI Assistant)
-
-- **UI 修改**: 若需修改弹窗样式或逻辑，请直接定位到 `js/ui/` 下对应的 `modal-*.js` 文件。
-- **业务逻辑**: 若需修改数据结构或 CRUD 逻辑，请关注 `js/store.js`；若涉及 AI 流程，请关注 `js/features/ai.js`。
-- **新增交互**: 若在 HTML 中添加了新的 `onclick` 事件，**务必**在 `js/actions.js` 中添加对应的 `window` 绑定，否则会报错 "function is not defined"。
-- **代码风格**: 保持 ES Modules 风格，不使用 CommonJS。保持无构建流程的特性。
+*Generated by Trae AI Assistant*

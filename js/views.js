@@ -48,8 +48,8 @@ function getFilteredTasks() {
     // 1. 视图筛选 (viewFilter)
     if (viewFilter === 'today') {
         filtered = filtered.filter(t => {
-            // 只展示未完成
-            if (t.status === 'done') return false;
+            // 只展示未完成 (且未取消)
+            if (t.status === 'done' || t.status === 'cancelled') return false;
             
             // 且 (是青蛙 或 重要且紧急 或 截止时间在未来7天内 或 今日创建的任务)
             const isFrog = t.isFrog;
@@ -73,7 +73,9 @@ function getFilteredTasks() {
     } else if (viewFilter === 'completed') {
         filtered = filtered.filter(t => t.status === 'done');
     } else if (viewFilter === 'pending') {
-        filtered = filtered.filter(t => t.status !== 'done');
+        filtered = filtered.filter(t => t.status !== 'done' && t.status !== 'cancelled');
+    } else if (viewFilter === 'archived') {
+        filtered = filtered.filter(t => t.status === 'cancelled');
     } else if (viewFilter === 'all') {
         // all view shows all tasks (including done)
     }
@@ -293,42 +295,51 @@ function formatSmartDate(dateStr, isDueDate = false, isDone = false) {
     const nowSd = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
     
     const todaySd = new Date(nowSd); todaySd.setHours(0,0,0,0);
-    const tomorrowSd = new Date(todaySd); tomorrowSd.setDate(tomorrowSd.getDate() + 1);
-    const in3DaysSd = new Date(todaySd); in3DaysSd.setDate(in3DaysSd.getDate() + 3);
-    const in7DaysSd = new Date(todaySd); in7DaysSd.setDate(in7DaysSd.getDate() + 7);
+    const targetSd = new Date(sd); targetSd.setHours(0,0,0,0);
     
-    const isPast = sd < nowSd;
-    const isToday = sd >= todaySd && sd < tomorrowSd;
-    const isSoon = sd >= tomorrowSd && sd < in3DaysSd;
-    const isThisWeek = sd >= in3DaysSd && sd < in7DaysSd;
+    // Calculate difference in days
+    const diffTime = targetSd - todaySd;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    let colorClass = 'text-gray-600';
-    let icon = ''; // Default icon or emoji
-    
-    if (isDueDate) {
-        if (isDone) {
-            // 已完成任务不显示特殊样式
-            colorClass = 'text-gray-400 line-through';
-            icon = '';
-        } else {
-            if (isPast && !isToday) { colorClass = 'text-red-600 font-bold'; icon = '⚠️'; } // 过期
-            else if (isToday) { colorClass = 'text-orange-600 font-bold'; icon = '🔥'; } // 今天
-            else if (isSoon) { colorClass = 'text-yellow-600 font-medium'; icon = '⚡'; } // 3天内
-            else if (isThisWeek) { colorClass = 'text-blue-600'; icon = '📅'; } // 7天内
-            else { colorClass = 'text-gray-500'; icon = ''; } // 远期
-        }
-    } else {
-        // 创建时间等
-        colorClass = 'text-gray-400';
-    }
-
     const m = (sd.getMonth() + 1).toString().padStart(2, '0');
     const d = sd.getDate().toString().padStart(2, '0');
     const time = sd.getHours().toString().padStart(2, '0') + ':' + sd.getMinutes().toString().padStart(2, '0');
     
-    return `<div class="flex items-center gap-1 ${colorClass} text-xs justify-center">
+    let colorClass = 'text-gray-600';
+    let icon = ''; 
+    let text = `${m}/${d} ${time}`; 
+
+    if (isDueDate) {
+        if (isDone) {
+            colorClass = 'text-gray-400 line-through';
+            text = `${m}/${d}`; 
+        } else {
+            if (diffDays < 0) {
+                // Overdue
+                const overdueDays = Math.abs(diffDays);
+                text = `已逾期 ${overdueDays}天`;
+                colorClass = 'text-red-600 font-bold';
+                icon = '🔥';
+            } else if (diffDays === 0) {
+                text = '今天';
+                colorClass = 'text-orange-600 font-bold';
+            } else if (diffDays === 1) {
+                text = '明天';
+                colorClass = 'text-blue-600';
+            } else {
+                // Future
+                text = `${m}/${d}`;
+                colorClass = 'text-gray-500';
+            }
+        }
+    } else {
+        // CreatedAt, CompletedAt
+        colorClass = 'text-gray-400';
+    }
+    
+    return `<div class="flex items-center gap-1 ${colorClass} text-xs justify-center" title="${date.toLocaleString()}">
         ${icon ? `<span class="text-sm">${icon}</span>` : ''}
-        <span>${m}/${d} ${time}</span>
+        <span>${text}</span>
     </div>`;
 }
 
@@ -529,7 +540,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                                     ${(task.assignees || []).map(p => `<span class="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded flex items-center gap-0.5"><i class="ri-user-line"></i>${escapeHtml(p)}</span>`).join('')}
                                 </div>
                                 <div class="flex gap-3 mt-1 items-center">
-                                    ${task.description ? `<p class="text-xs text-gray-500 line-clamp-1 flex-1">${escapeHtml(task.description)}</p>` : ''}
+                                    ${task.description ? `<p class="text-xs text-gray-500 flex-1" title="${escapeHtml(task.description)}">${escapeHtml(task.description.length > 20 ? task.description.substring(0, 20) + '...' : task.description)}</p>` : ''}
                                 </div>
                                 
                                 ${(task.relations && task.relations.length > 0) ? `

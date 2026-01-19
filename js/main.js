@@ -25,7 +25,7 @@ function initUI() {
             if (target) {
                 if (['list', 'kanban', 'calendar', 'quadrant'].includes(target)) {
                     store.currentViewMode = target;
-                } else if (['today', 'all', 'completed', 'pending'].includes(target)) {
+                } else if (['today', 'all', 'completed', 'pending', 'archived'].includes(target)) {
                     store.viewFilter = target;
                     // 重置选中状态
                     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('bg-gray-100', 'text-blue-600'));
