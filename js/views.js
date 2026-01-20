@@ -519,7 +519,8 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
 export const render = {
     list() {
         const tasks = getFilteredTasks();
-        
+        // 1. 新增：计算是否已全选 (用于控制复选框的 checked 属性)
+        const isAllSelected = tasks.length > 0 && tasks.every(t => store.selectedTaskIds.has(t.id));
         // 分页逻辑
         const { page, pageSize } = store.pagination.list;
         // 修正：对于列表视图，分页应该基于顶层任务（树根），否则会打断父子关系
@@ -546,7 +547,8 @@ export const render = {
                             <tr>
                                 <th class="w-10 text-center">
                                     <input type="checkbox" id="select-all-checkbox-table" 
-                                        onchange="window.toggleSelectAll()"
+                                        onchange="window.toggleSelectAll(this.checked)"
+                                        ${isAllSelected ? 'checked' : ''}
                                         class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                                 </th>
                                 <th class="w-12 text-center text-gray-500 font-bold">🐸</th>
