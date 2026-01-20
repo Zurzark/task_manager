@@ -724,15 +724,23 @@ export const render = {
         return `
             <div class="flex gap-4 h-full overflow-x-auto pb-4 px-2">
                 ${columns.map(col => `
-                    <div class="kanban-col bg-gray-100 rounded-lg p-3 flex flex-col h-full w-full min-w-[280px] flex-1">
+                    <div class="kanban-col bg-gray-100 rounded-lg p-3 flex flex-col h-full w-full min-w-[280px] flex-1"
+                         data-group="${col.id}"
+                         ondragover="window.handleKanbanDragOver(event)"
+                         ondrop="window.handleKanbanDrop(event)">
                         <h3 class="font-bold text-gray-700 mb-3 flex justify-between">
                             ${col.title} <span class="bg-gray-200 px-2 rounded text-xs py-1">${col.items.length}</span>
                         </h3>
                         <div class="flex-1 overflow-y-auto pr-1 space-y-2">
                             ${col.items.map(t => `
-                                <div class="bg-white p-3 rounded shadow-sm border-l-4 ${this._getBorderClass(t.priority)} cursor-pointer hover:shadow-md" onclick="window.triggerEdit('${t.id}')">
-                                    <div class="font-medium text-sm mb-1">${escapeHtml(t.title)}</div>
-                                    <div class="text-xs text-gray-500 flex justify-between">
+                                <div class="kanban-card bg-white p-3 rounded shadow-sm border-l-4 ${this._getBorderClass(t.priority)} cursor-pointer hover:shadow-md" 
+                                     draggable="true"
+                                     data-id="${t.id}"
+                                     ondragstart="window.handleDragStart(event, '${t.id}')"
+                                     ondragend="window.handleDragEnd(event)"
+                                     onclick="window.triggerEdit('${t.id}')">
+                                    <div class="font-medium text-sm mb-1 pointer-events-none">${escapeHtml(t.title)}</div>
+                                    <div class="text-xs text-gray-500 flex justify-between pointer-events-none">
                                         <span>${t.category || ''}</span>
                                         ${t.dueDate ? `<span>${new Date(t.dueDate).toLocaleDateString()}</span>` : ''}
                                     </div>
@@ -762,15 +770,23 @@ export const render = {
             const pagedList = list.slice(start, end);
 
             return `
-            <div class="quadrant-cell ${colorClass} flex flex-col">
+            <div class="quadrant-cell ${colorClass} flex flex-col"
+                 data-group="${priorityKey}"
+                 ondragover="window.handleQuadrantDragOver(event)"
+                 ondrop="window.handleQuadrantDrop(event)">
                 <h3 class="font-bold mb-2 text-gray-700 border-b pb-2 flex justify-between">
                     ${title} <span class="text-xs bg-white px-2 rounded border">${list.length}</span>
                 </h3>
                 <div class="overflow-y-auto flex-1 pr-1 space-y-2">
                     ${pagedList.map(t => `
-                        <div class="bg-white p-2 rounded border shadow-sm cursor-pointer hover:bg-gray-50" onclick="window.triggerEdit('${t.id}')">
-                            <div class="text-sm font-medium">${escapeHtml(t.title)}</div>
-                            ${t.dueDate ? `<div class="text-xs text-gray-400 mt-1"><i class="ri-time-line"></i> ${new Date(t.dueDate).toLocaleDateString()}</div>` : ''}
+                        <div class="quadrant-card bg-white p-2 rounded border shadow-sm cursor-pointer hover:bg-gray-50" 
+                             draggable="true"
+                             data-id="${t.id}"
+                             ondragstart="window.handleDragStart(event, '${t.id}')"
+                             ondragend="window.handleDragEnd(event)"
+                             onclick="window.triggerEdit('${t.id}')">
+                            <div class="text-sm font-medium pointer-events-none">${escapeHtml(t.title)}</div>
+                            ${t.dueDate ? `<div class="text-xs text-gray-400 mt-1 pointer-events-none"><i class="ri-time-line"></i> ${new Date(t.dueDate).toLocaleDateString()}</div>` : ''}
                         </div>
                     `).join('')}
                 </div>

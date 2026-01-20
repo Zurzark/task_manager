@@ -347,6 +347,22 @@ thead.drop-target-root {
     outline-offset: -2px;
 }
 
+/* Kanban/Quadrant Drop Targets */
+.drop-target-container {
+    background-color: #f0fdf4 !important; /* Green tint */
+    border: 2px dashed #4ade80 !important;
+}
+
+.drop-target-card-top {
+    border-top: 3px solid #3b82f6 !important;
+    margin-top: 4px;
+}
+
+.drop-target-card-bottom {
+    border-bottom: 3px solid #3b82f6 !important;
+    margin-bottom: 4px;
+}
+
 /* Global Drop Target (Visual Feedback for Root Drop) */
 body.dragging-active #app {
     cursor: copy; /* Indicate copy/move */

@@ -751,3 +751,176 @@ window.handleRootDrop = (e) => {
     draggedTaskId = null;
     document.querySelectorAll('.drop-target-root').forEach(el => el.classList.remove('drop-target-root'));
 };
+
+// ============ Kanban & Quadrant Drag Handlers ============
+
+// Common Helper for Kanban/Quadrant Drop
+function handleViewDrop(e, targetId, viewType) {
+    e.preventDefault();
+    if (!draggedTaskId) return;
+    
+    // Prevent dropping on self
+    if (draggedTaskId === targetId) return;
+
+    const draggedTask = store.tasks.find(t => t.id === draggedTaskId);
+    if (!draggedTask) return;
+
+    // Determine target container and task
+    const targetElement = e.target.closest(viewType === 'kanban' ? '.kanban-card' : '.quadrant-card');
+    const targetContainer = e.target.closest(viewType === 'kanban' ? '.kanban-col' : '.quadrant-cell');
+    
+    if (!targetContainer) return;
+
+    // Extract New Group (Priority or Status)
+    let newGroupValue = targetContainer.dataset.group;
+    
+    // Update Task Group
+    let hasChanges = false;
+    if (viewType === 'kanban') {
+        // Kanban groups are Priorities (urgent, high, medium, low)
+        if (draggedTask.priority !== newGroupValue) {
+            draggedTask.priority = newGroupValue;
+            hasChanges = true;
+        }
+    } else {
+        // Quadrant groups are also Priorities
+        if (draggedTask.priority !== newGroupValue) {
+            draggedTask.priority = newGroupValue;
+            hasChanges = true;
+        }
+    }
+
+    // Reordering Logic
+    const targetTaskId = targetElement ? targetElement.dataset.id : null;
+    
+    // Get all tasks in this group to calculate order
+    const groupTasks = store.tasks.filter(t => t.priority === newGroupValue);
+    // Sort by current order to find neighbors
+    groupTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const groupTasksExcl = groupTasks.filter(t => t.id !== draggedTaskId);
+    
+    if (targetTaskId && targetTaskId !== draggedTaskId) {
+        const targetTask = store.tasks.find(t => t.id === targetTaskId);
+        if (targetTask) {
+            // Determine Insert Position (Before or After)
+            const rect = targetElement.getBoundingClientRect();
+            const offsetY = e.clientY - rect.top;
+            const isAfter = offsetY > rect.height / 2;
+            
+            const targetIndex = groupTasksExcl.findIndex(t => t.id === targetTaskId);
+            
+            let newOrder;
+            if (isAfter) {
+                const next = groupTasksExcl[targetIndex + 1];
+                if (next) {
+                    newOrder = ((targetTask.order || 0) + (next.order || 0)) / 2;
+                } else {
+                    newOrder = (targetTask.order || 0) + 10000;
+                }
+            } else { // Before
+                const prev = groupTasksExcl[targetIndex - 1];
+                if (prev) {
+                    newOrder = ((prev.order || 0) + (targetTask.order || 0)) / 2;
+                } else {
+                    newOrder = (targetTask.order || 0) - 10000;
+                }
+            }
+            
+            if (draggedTask.order !== newOrder) {
+                draggedTask.order = newOrder;
+                hasChanges = true;
+            }
+        }
+    } else if (!targetTaskId) {
+        // Dropped in empty space of container -> Move to end
+        if (groupTasksExcl.length > 0) {
+            const last = groupTasksExcl[groupTasksExcl.length - 1];
+            draggedTask.order = (last.order || 0) + 10000;
+        } else {
+            draggedTask.order = 0;
+        }
+        hasChanges = true;
+    }
+
+    if (hasChanges) {
+        store.saveData();
+        // Reset sort state to manual to reflect changes immediately
+        store.sortState = [];
+        updateUI();
+    }
+    
+    // Cleanup visual feedback
+    document.querySelectorAll('.drop-target-card-top, .drop-target-card-bottom, .drop-target-container').forEach(el => {
+        el.classList.remove('drop-target-card-top', 'drop-target-card-bottom', 'drop-target-container');
+    });
+    
+    draggedTaskId = null;
+}
+
+// Kanban Handlers
+window.handleKanbanDragOver = (e) => {
+    e.preventDefault();
+    if (!draggedTaskId) return;
+    
+    const container = e.target.closest('.kanban-col');
+    if (!container) return;
+    
+    const card = e.target.closest('.kanban-card');
+    
+    // Visual Feedback
+    document.querySelectorAll('.drop-target-card-top, .drop-target-card-bottom, .drop-target-container').forEach(el => {
+        el.classList.remove('drop-target-card-top', 'drop-target-card-bottom', 'drop-target-container');
+    });
+
+    if (card) {
+        const rect = card.getBoundingClientRect();
+        const offsetY = e.clientY - rect.top;
+        if (offsetY > rect.height / 2) {
+            card.classList.add('drop-target-card-bottom');
+        } else {
+            card.classList.add('drop-target-card-top');
+        }
+    } else {
+        container.classList.add('drop-target-container');
+    }
+    
+    e.dataTransfer.dropEffect = 'move';
+};
+
+window.handleKanbanDrop = (e) => {
+    handleViewDrop(e, null, 'kanban');
+};
+
+// Quadrant Handlers
+window.handleQuadrantDragOver = (e) => {
+    e.preventDefault();
+    if (!draggedTaskId) return;
+    
+    const container = e.target.closest('.quadrant-cell');
+    if (!container) return;
+    
+    const card = e.target.closest('.quadrant-card');
+    
+    // Visual Feedback
+    document.querySelectorAll('.drop-target-card-top, .drop-target-card-bottom, .drop-target-container').forEach(el => {
+        el.classList.remove('drop-target-card-top', 'drop-target-card-bottom', 'drop-target-container');
+    });
+
+    if (card) {
+        const rect = card.getBoundingClientRect();
+        const offsetY = e.clientY - rect.top;
+        if (offsetY > rect.height / 2) {
+            card.classList.add('drop-target-card-bottom');
+        } else {
+            card.classList.add('drop-target-card-top');
+        }
+    } else {
+        container.classList.add('drop-target-container');
+    }
+    
+    e.dataTransfer.dropEffect = 'move';
+};
+
+window.handleQuadrantDrop = (e) => {
+    handleViewDrop(e, null, 'quadrant');
+};
