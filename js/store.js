@@ -718,6 +718,12 @@ export const store = {
             // Fallback default sort
              const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
              filtered.sort((a, b) => {
+                 // 0. Manual Order (Ascending)
+                 // Only if order is different (and non-zero check is implicit since 0===0)
+                 if ((a.order || 0) !== (b.order || 0)) {
+                     return (a.order || 0) - (b.order || 0);
+                 }
+
                  // 1. First by Frog (Yes > No)
                  if (a.isFrog !== b.isFrog) return a.isFrog ? -1 : 1;
                  

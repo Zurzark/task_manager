@@ -321,10 +321,23 @@
 }
 
 /* ============ Drag and Drop ============ */
-.drop-target {
+/* Nesting (Middle) */
+.drop-target-inside {
     background-color: #e0e7ff !important;
     outline: 2px dashed #6366f1;
     outline-offset: -2px;
+}
+
+/* Insert Before (Top) */
+.drop-target-top {
+    border-top: 3px solid #3b82f6 !important;
+    transition: border-top 0.1s;
+}
+
+/* Insert After (Bottom) */
+.drop-target-bottom {
+    border-bottom: 3px solid #3b82f6 !important;
+    transition: border-bottom 0.1s;
 }
 
 /* Header Drop Target (Visual Feedback) */

@@ -552,7 +552,7 @@ window.handleDragOver = (e, taskId) => {
 
     if (!draggedTaskId || draggedTaskId === taskId) return;
     
-    // Check circular dependency: if I drag A to B, B cannot be a child of A
+    // Check circular dependency
     if (isDescendant(draggedTaskId, taskId)) {
         e.dataTransfer.dropEffect = 'none';
         return;
@@ -561,12 +561,25 @@ window.handleDragOver = (e, taskId) => {
     e.dataTransfer.dropEffect = 'move';
     
     const row = e.currentTarget;
-    row.classList.add('drop-target');
+    const rect = row.getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const height = rect.height;
+    
+    // Clear all classes first
+    row.classList.remove('drop-target-inside', 'drop-target-top', 'drop-target-bottom');
+    
+    if (offsetY < height * 0.25) {
+        row.classList.add('drop-target-top');
+    } else if (offsetY > height * 0.75) {
+        row.classList.add('drop-target-bottom');
+    } else {
+        row.classList.add('drop-target-inside');
+    }
 };
 
 window.handleDragLeave = (e, taskId) => {
     const row = e.currentTarget;
-    row.classList.remove('drop-target');
+    row.classList.remove('drop-target-inside', 'drop-target-top', 'drop-target-bottom');
 };
 
 window.handleDrop = (e, taskId) => {
@@ -574,36 +587,92 @@ window.handleDrop = (e, taskId) => {
     e.stopPropagation(); // Stop bubbling to container
     
     const row = e.currentTarget;
-    row.classList.remove('drop-target');
+    const isTop = row.classList.contains('drop-target-top');
+    const isBottom = row.classList.contains('drop-target-bottom');
+    const isInside = row.classList.contains('drop-target-inside');
+    
+    // Cleanup
+    row.classList.remove('drop-target-inside', 'drop-target-top', 'drop-target-bottom');
     
     if (!draggedTaskId || draggedTaskId === taskId) return;
-    
-    // Final circular check
     if (isDescendant(draggedTaskId, taskId)) return;
     
-    const task = store.tasks.find(t => t.id === draggedTaskId);
-    if (task) {
-        // Update parent
-        task.parentId = taskId;
+    const draggedTask = store.tasks.find(t => t.id === draggedTaskId);
+    const targetTask = store.tasks.find(t => t.id === taskId);
+    
+    if (!draggedTask || !targetTask) return;
+    
+    if (isTop || isBottom) {
+        // Reordering (Insert Before/After)
+        draggedTask.parentId = targetTask.parentId;
         
-        // Ensure parent is not collapsed so we can see the dropped item
+        // Calculate Order
+        // Use getFilteredTasks to get the current visual order
+        // Note: We need to be careful if getFilteredTasks includes the dragged task itself, 
+        // but for finding neighbors of targetTask, it's fine.
+        const allTasks = getFilteredTasks(); 
+        const siblings = allTasks.filter(t => t.parentId === targetTask.parentId);
+        
+        const targetIndex = siblings.findIndex(t => t.id === taskId);
+        
+        let newOrder;
+        if (targetIndex !== -1) {
+            if (isTop) {
+                // Insert Before
+                const prev = siblings[targetIndex - 1];
+                if (prev) {
+                    newOrder = ((prev.order || 0) + (targetTask.order || 0)) / 2;
+                } else {
+                    newOrder = (targetTask.order || 0) - 10000;
+                }
+            } else {
+                // Insert After
+                const next = siblings[targetIndex + 1];
+                if (next) {
+                    newOrder = ((targetTask.order || 0) + (next.order || 0)) / 2;
+                } else {
+                    newOrder = (targetTask.order || 0) + 10000;
+                }
+            }
+            draggedTask.order = newOrder;
+        }
+        
+        // Reset sort state to Manual if we reordered
+        store.sortState = [];
+        
+    } else {
+        // Nesting (Inside)
+        draggedTask.parentId = taskId;
+        
         const parentTask = store.tasks.find(t => t.id === taskId);
         if (parentTask) parentTask.collapsed = false;
-
-        store.saveData();
-        updateUI();
+        
+        // Append to end of children
+        const children = store.tasks.filter(t => t.parentId === taskId);
+        if (children.length > 0) {
+             const maxOrder = children.reduce((max, t) => Math.max(max, t.order || 0), -Infinity);
+             draggedTask.order = maxOrder + 10000;
+        } else {
+            draggedTask.order = 0;
+        }
     }
     
+    store.saveData();
+    updateUI();
     draggedTaskId = null;
 };
 
 window.handleDragEnd = (e) => {
     draggedTaskId = null;
+    document.body.classList.remove('dragging-active'); // Remove global class
     const row = e.target.closest('tr');
     if (row) row.classList.remove('opacity-50');
     
     // Cleanup any stuck drop-targets
-    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+    document.querySelectorAll('.drop-target-inside, .drop-target-top, .drop-target-bottom').forEach(el => {
+        el.classList.remove('drop-target-inside', 'drop-target-top', 'drop-target-bottom');
+    });
+    document.querySelectorAll('.drop-target-root').forEach(el => el.classList.remove('drop-target-root'));
 };
 
 // Container handlers (Move to Root)
