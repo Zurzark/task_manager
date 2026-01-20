@@ -608,30 +608,50 @@ window.handleDrop = (e, taskId) => {
         
         // Calculate Order
         // Use getFilteredTasks to get the current visual order
-        // Note: We need to be careful if getFilteredTasks includes the dragged task itself, 
-        // but for finding neighbors of targetTask, it's fine.
         const allTasks = getFilteredTasks(); 
         const siblings = allTasks.filter(t => t.parentId === targetTask.parentId);
         
-        const targetIndex = siblings.findIndex(t => t.id === taskId);
+        // 1. Normalize orders if needed (if collisions exist or not strictly ascending)
+        let needNormalize = false;
+        for (let i = 0; i < siblings.length - 1; i++) {
+            const curr = siblings[i].order || 0;
+            const next = siblings[i+1].order || 0;
+            if (curr >= next || (next - curr) < 0.0001) {
+                needNormalize = true;
+                break;
+            }
+        }
+        
+        if (needNormalize) {
+            siblings.forEach((t, i) => {
+                t.order = (i + 1) * 100000;
+            });
+        }
+
+        // 2. Calculate new order based on neighbors in the "clean" list (excluding dragged task)
+        const siblingsExcl = siblings.filter(t => t.id !== draggedTaskId);
+        const targetIndex = siblingsExcl.findIndex(t => t.id === taskId);
         
         let newOrder;
+        
         if (targetIndex !== -1) {
+            const curr = siblingsExcl[targetIndex]; // targetTask
+            
             if (isTop) {
                 // Insert Before
-                const prev = siblings[targetIndex - 1];
+                const prev = siblingsExcl[targetIndex - 1];
                 if (prev) {
-                    newOrder = ((prev.order || 0) + (targetTask.order || 0)) / 2;
+                    newOrder = ((prev.order || 0) + (curr.order || 0)) / 2;
                 } else {
-                    newOrder = (targetTask.order || 0) - 10000;
+                    newOrder = (curr.order || 0) / 2; // Between 0 and curr
                 }
             } else {
                 // Insert After
-                const next = siblings[targetIndex + 1];
+                const next = siblingsExcl[targetIndex + 1];
                 if (next) {
-                    newOrder = ((targetTask.order || 0) + (next.order || 0)) / 2;
+                    newOrder = ((curr.order || 0) + (next.order || 0)) / 2;
                 } else {
-                    newOrder = (targetTask.order || 0) + 10000;
+                    newOrder = (curr.order || 0) + 100000;
                 }
             }
             draggedTask.order = newOrder;

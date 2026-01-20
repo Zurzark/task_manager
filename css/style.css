@@ -351,3 +351,96 @@ thead.drop-target-root {
 body.dragging-active #app {
     cursor: copy; /* Indicate copy/move */
 }
+
+/* ============ New Styles for Task List Redesign (User Request) ============ */
+
+/* 1. Frog Task Gradient & Watermark */
+.task-frog-bg {
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(240,253,244,0.4) 50%, rgba(220,252,231,0.6) 100%);
+    border-left: 4px solid #22c55e !important; /* Green-500 */
+    position: relative;
+    /* overflow: hidden; Removed to allow dropdowns to overflow if needed, but handled by z-index */
+}
+
+.task-frog-watermark {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-15deg);
+    width: 30px;
+    height: 30px;
+    color: #22c55e; /* green-500 */
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 0;
+    transition: transform 0.3s ease;
+}
+
+.group:hover .task-frog-watermark {
+    transform: translateY(-50%) rotate(-10deg) scale(1.1);
+    opacity: 0.25;
+}
+
+/* 2. Priority Tooltip (Global Fixed) */
+.global-tooltip {
+    position: fixed;
+    background: rgba(31, 41, 55, 0.95); /* Gray-800 */
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    text-align: center;
+    min-width: 160px;
+    transform: translateY(5px);
+}
+
+.global-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Arrow */
+.global-tooltip::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+}
+
+/* Arrow Bottom (Default, tooltip above) */
+.global-tooltip:not(.tooltip-bottom)::after {
+    top: 100%;
+    border-color: rgba(31, 41, 55, 0.95) transparent transparent transparent;
+}
+
+/* Arrow Top (Tooltip below) */
+.global-tooltip.tooltip-bottom::after {
+    bottom: 100%;
+    border-color: transparent transparent rgba(31, 41, 55, 0.95) transparent;
+}
+
+/* 3. Priority Badge Enhancements (Material Style) */
+.priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: all 0.2s;
+    min-width: 80px;
+}
+.priority-badge:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}

@@ -1,13 +1,33 @@
 import { store } from './store.js';
 import { escapeHtml } from './utils.js';
 
-// 辅助：获取优先级配置 (Badge 模式)
+// 辅助：获取优先级配置 (Badge 模式) - 升级版
 function getPriorityBadgeConfig(priority) {
     const config = {
-        urgent: { label: '重要且紧急', class: 'bg-red-100 text-red-700 border-red-200' },
-        high: { label: '重要不紧急', class: 'bg-yellow-100 text-yellow-700 border-yellow-200' }, // Orange/Yellow
-        medium: { label: '不重要紧急', class: 'bg-blue-100 text-blue-700 border-blue-200' },
-        low: { label: '不重要不紧急', class: 'bg-green-100 text-green-700 border-green-200' }
+        urgent: { 
+            label: '重要且紧急', 
+            class: 'bg-red-50 text-red-700 border border-red-200 priority-badge', 
+            icon: 'ri-alarm-warning-fill',
+            tooltip: 'Q1: 马上做 (Do Now)<br/><span class="opacity-75 text-xs">危机、急迫的问题、期限</span>'
+        },
+        high: { 
+            label: '重要不紧急', 
+            class: 'bg-orange-50 text-orange-700 border border-orange-200 priority-badge', 
+            icon: 'ri-star-fill',
+            tooltip: 'Q2: 计划做 (Schedule)<br/><span class="opacity-75 text-xs">规划、学习、健康、预防</span>'
+        },
+        medium: { 
+            label: '不重要紧急', 
+            class: 'bg-blue-50 text-blue-700 border border-blue-200 priority-badge', 
+            icon: 'ri-user-shared-fill',
+            tooltip: 'Q3: 授权做 (Delegate)<br/><span class="opacity-75 text-xs">会议、干扰、琐事</span>'
+        },
+        low: { 
+            label: '不重要不紧急', 
+            class: 'bg-gray-50 text-gray-600 border border-gray-200 priority-badge', 
+            icon: 'ri-cup-line',
+            tooltip: 'Q4: 稍后做 (Eliminate)<br/><span class="opacity-75 text-xs">浪费时间、娱乐、消遣</span>'
+        }
     };
     return config[priority] || config.medium;
 }
@@ -250,6 +270,59 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
     
     // Global helper for table menus
     if (!window.toggleTableMenu) {
+        // ... (existing toggleTableMenu code) ...
+        
+        // --- Global Tooltip Logic ---
+        let tooltipEl = null;
+        let tooltipTimeout = null;
+
+        window.showPriorityTooltip = (el, priority) => {
+            if (tooltipTimeout) clearTimeout(tooltipTimeout);
+            
+            const config = getPriorityBadgeConfig(priority);
+            if (!config || !config.tooltip) return;
+
+            if (!tooltipEl) {
+                tooltipEl = document.createElement('div');
+                tooltipEl.className = 'global-tooltip';
+                document.body.appendChild(tooltipEl);
+            }
+
+            tooltipEl.innerHTML = config.tooltip;
+            
+            const rect = el.getBoundingClientRect();
+            const tooltipRect = tooltipEl.getBoundingClientRect();
+            
+            // Default: Above
+            let top = rect.top - tooltipRect.height - 8;
+            let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+            
+            tooltipEl.classList.remove('tooltip-bottom');
+
+            // Check if top is clipped
+            if (top < 0) {
+                // Show below
+                top = rect.bottom + 8;
+                tooltipEl.classList.add('tooltip-bottom');
+            }
+
+            tooltipEl.style.top = `${top}px`;
+            tooltipEl.style.left = `${left}px`;
+            
+            // Show
+            requestAnimationFrame(() => {
+                tooltipEl.classList.add('visible');
+            });
+        };
+
+        window.hidePriorityTooltip = () => {
+            if (tooltipEl) {
+                tooltipEl.classList.remove('visible');
+                // Optional: remove from DOM after transition, but hiding is enough for perf
+            }
+        };
+        // --- End Global Tooltip Logic ---
+
         window.toggleTableMenu = function(triggerEl) {
             // helper: restore floating menu to original parent
             const restoreMenu = (m) => {
@@ -263,25 +336,52 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 }
             };
 
-            const menu = triggerEl.nextElementSibling;
+            // 1. Try to find menu in parent (closed state)
+            let menu = triggerEl.parentElement.querySelector('.table-menu-dropdown');
+            
+            // 2. If not found, try to find in body (opened state)
+            if (!menu) {
+                const openedMenus = document.querySelectorAll('body > .table-menu-dropdown');
+                for (let m of openedMenus) {
+                    if (m.__parent === triggerEl.parentElement) {
+                        menu = m;
+                        break;
+                    }
+                }
+            }
+
             if (!menu) return;
 
-            // Check if THIS menu is already open
+            // Check if THIS menu is already open (if it's in body, it's open)
+            // Or if it doesn't have 'hidden' class (though floating ones might have hidden removed)
             const isAlreadyOpen = !menu.classList.contains('hidden');
 
             // Close ALL menus first (including this one if it's open)
             document.querySelectorAll('.table-menu-dropdown').forEach(el => {
-                el.classList.add('hidden');
-                el.parentElement.classList.remove('z-[100]');
-                restoreMenu(el);
+                if (!el.classList.contains('hidden')) {
+                    el.classList.add('hidden');
+                    el.parentElement.classList.remove('z-[100]');
+                    restoreMenu(el);
+                }
             });
+            
+            // Expose helper to close all menus (for actions)
+            window.closeAllTableMenus = () => {
+                document.querySelectorAll('.table-menu-dropdown').forEach(el => {
+                    if (!el.classList.contains('hidden')) {
+                        el.classList.add('hidden');
+                        el.parentElement.classList.remove('z-[100]');
+                        restoreMenu(el);
+                    }
+                });
+            };
 
             // If it was already open, we just closed it above, so we are done (toggle off behavior).
             // If it was closed, we open it now.
             if (!isAlreadyOpen) {
                 // Open current
                 menu.classList.remove('hidden');
-                const parent = menu.parentElement;
+                const parent = triggerEl.parentElement;
 
                 // always ensure topmost by floating to body with fixed position
                 menu.__parent = parent;
@@ -317,21 +417,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
              if (e.target.closest('.table-menu-dropdown')) return;
              
              // Otherwise close all menus
-             document.querySelectorAll('.table-menu-dropdown').forEach(el => {
-                if (!el.classList.contains('hidden')) {
-                    el.classList.add('hidden');
-                    el.parentElement.classList.remove('z-[100]');
-                    // restore if floating
-                    if (el.__parent) {
-                        el.style.position = '';
-                        el.style.left = '';
-                        el.style.top = '';
-                        el.style.zIndex = '';
-                        el.__parent.appendChild(el);
-                        el.__parent = null;
-                    }
-                }
-            });
+             if (window.closeAllTableMenus) window.closeAllTableMenus();
         });
     }
 
@@ -350,7 +436,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
         if (isSelected) rowBgClass = 'bg-blue-50';
         else if (task.status === 'done') rowBgClass = 'bg-gray-100/80 grayscale'; // 已完成：更深的灰，去色
         else if (task.status === 'cancelled') rowBgClass = 'bg-gray-100 opacity-60 line-through-gray'; // 已取消
-        else if (isFrog) rowBgClass = 'bg-green-50 shadow-sm border-l-4 border-green-500'; // 青蛙：高级绿，左侧强调
+        else if (isFrog) rowBgClass = 'task-frog-bg'; // 青蛙：新拟态渐变背景
 
         // 标题颜色逻辑
         let titleColorClass = 'text-gray-900 font-bold'; // 默认加粗
@@ -417,8 +503,9 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 </td>
 
                 <!-- 4. 任务详情 (核心列) -->
-                <td class="min-w-[300px] border-r border-transparent group-hover:border-gray-100 transition">
-                    <div style="${indentStyle}" class="relative">
+                <td class="min-w-[300px] border-r border-transparent group-hover:border-gray-100 transition relative overflow-hidden">
+                    ${isFrog ? '<div class="task-frog-watermark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></div>' : ''}
+                    <div style="${indentStyle}" class="relative z-10">
                         ${treeConnector}
                         <div class="flex items-start table-tree-node py-2">
                             ${toggleIcon}
@@ -451,15 +538,19 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                 <td class="w-24 text-center">
                      <div class="relative group/priority flex justify-center z-20 hover:z-50">
                         <span onclick="event.stopPropagation(); window.toggleTableMenu(this)" 
-                             class="px-1.5 py-0.5 rounded text-xs scale-90 border cursor-pointer select-none whitespace-nowrap ${pBadgeConfig.class}">
-                             ${pBadgeConfig.label}
+                             onmouseenter="window.showPriorityTooltip(this, '${task.priority}')"
+                             onmouseleave="window.hidePriorityTooltip()"
+                             class="${pBadgeConfig.class} cursor-pointer select-none whitespace-nowrap scale-90 text-xs">
+                             <i class="${pBadgeConfig.icon} text-sm"></i>
+                             <span class="ml-1">${pBadgeConfig.label}</span>
                         </span>
+                        
                         <!-- 优先级下拉菜单 -->
                         <div class="hidden table-menu-dropdown absolute left-0 top-full mt-1 w-28 bg-white shadow-lg rounded border z-50 text-left py-1">
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updatePriority('${task.id}', 'urgent')">重要且紧急</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-orange-600" onclick="window.updatePriority('${task.id}', 'high')">重要不紧急</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updatePriority('${task.id}', 'medium')">不重要紧急</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updatePriority('${task.id}', 'low')">不重要不紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updatePriority('${task.id}', 'urgent'); if(window.closeAllTableMenus) window.closeAllTableMenus()">重要且紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-orange-600" onclick="window.updatePriority('${task.id}', 'high'); if(window.closeAllTableMenus) window.closeAllTableMenus()">重要不紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-blue-600" onclick="window.updatePriority('${task.id}', 'medium'); if(window.closeAllTableMenus) window.closeAllTableMenus()">不重要紧急</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updatePriority('${task.id}', 'low'); if(window.closeAllTableMenus) window.closeAllTableMenus()">不重要不紧急</div>
                         </div>
                     </div>
                 </td>
@@ -551,7 +642,7 @@ export const render = {
                                         ${isAllSelected ? 'checked' : ''}
                                         class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                                 </th>
-                                <th class="w-12 text-center text-gray-500 font-bold">🐸</th>
+                                <th class="w-12 text-center text-gray-500 font-bold">青蛙</th>
                                 <th class="w-20 text-center text-gray-500 font-bold">行动</th>
                                 
                                 <th class="text-gray-500 font-bold">任务详情</th>
