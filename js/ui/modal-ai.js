@@ -3,10 +3,11 @@ import { generateId, escapeHtml, getShanghaiInputValue } from '../utils.js';
 import { updateUI } from './core.js';
 
 const PRIORITY_MAP = {
-    'high': { label: '重要且紧急', class: 'ai-priority-urgent', textClass: 'ai-text-urgent', badgeClass: 'ai-badge-urgent' },
-    'medium': { label: '重要不紧急', class: 'ai-priority-high', textClass: 'ai-text-high', badgeClass: 'ai-badge-high' },
-    'low': { label: '不重要紧急', class: 'ai-priority-medium', textClass: 'ai-text-medium', badgeClass: 'ai-badge-medium' },
-    'none': { label: '不重要不紧急', class: 'ai-priority-none', textClass: 'ai-text-none', badgeClass: 'ai-badge-none' }
+    'urgent': { label: '重要且紧急', class: 'ai-priority-urgent', textClass: 'ai-text-urgent', badgeClass: 'ai-badge-urgent' },
+    'high': { label: '重要不紧急', class: 'ai-priority-high', textClass: 'ai-text-high', badgeClass: 'ai-badge-high' },
+    'medium': { label: '不重要紧急', class: 'ai-priority-medium', textClass: 'ai-text-medium', badgeClass: 'ai-badge-medium' },
+    'low': { label: '不重要不紧急', class: 'ai-priority-none', textClass: 'ai-text-none', badgeClass: 'ai-badge-none' },
+    'none': { label: '无优先级', class: 'ai-priority-none', textClass: 'ai-text-none', badgeClass: 'ai-badge-none' }
 };
 
 const ACTION_MAP = {
@@ -230,6 +231,7 @@ function renderTaskItem(t, index) {
                 <div class="flex items-center gap-1 group relative">
                     <i class="ri-calendar-event-line text-gray-400 group-hover:text-purple-500"></i>
                     <input type="datetime-local" value="${dateValue}" 
+                        oninput="window.handleDateInputWithDefault(this, '${t.dueDate || ''}', '${store.config.workHours?.end || '18:15'}'); window.updateTempTask('${t._tempId}', 'dueDate', this.value, false)"
                         onchange="window.updateTempTask('${t._tempId}', 'dueDate', this.value, true)"
                         class="bg-transparent border-none p-0 text-xs text-gray-500 focus:ring-0 cursor-pointer hover:text-purple-600 font-medium font-mono">
                 </div>

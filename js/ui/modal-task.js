@@ -144,7 +144,7 @@ export function openTaskModal(taskId) {
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-500 mb-1">截止时间</label>
-                                    <input type="datetime-local" id="edit-due" value="${getShanghaiInputValue(task.dueDate)}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
+                                    <input type="datetime-local" id="edit-due" value="${getShanghaiInputValue(task.dueDate)}" oninput="window.handleDateInputWithDefault(this, '${task.dueDate || ''}', '${(store.config.workHours && store.config.workHours.end) ? store.config.workHours.end : '18:15'}')" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm">
                                 </div>
                                 <div class="col-span-2">
                                     <label class="block text-xs font-bold text-gray-500 mb-1">提醒时间</label>
