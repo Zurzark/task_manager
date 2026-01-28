@@ -265,7 +265,7 @@ function formatTimeColumn(task) {
 }
 
 // 递归生成表格行
-function renderTableRows(nodes, level = 0, parentIsLast = true) {
+function renderTableRows(nodes, level = 0, parentIsLast = true, parentIdPrefix = '') {
     let html = '';
     
     // Global helper for table menus
@@ -431,6 +431,15 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
         const isDone = task.status === 'done';
         const isFrog = task.isFrog;
         
+        // Virtual ID Calculation
+        const currentId = level === 0 ? (index + 1).toString() : `${parentIdPrefix}.${index + 1}`;
+
+        // ID & Checkbox Visibility Logic
+        // If selected: ID Hidden, Checkbox Visible (Always)
+        // If not selected: ID Visible (Hidden on Hover), Checkbox Hidden (Visible on Hover)
+        const idOpacityClass = isSelected ? 'opacity-0' : 'group-hover/tr:opacity-0 transition-opacity duration-200';
+        const checkboxOpacityClass = isSelected ? 'opacity-100' : 'opacity-0 group-hover/tr:opacity-100 transition-opacity duration-200';
+
         // 状态背景色逻辑
         let rowBgClass = '';
         if (isSelected) rowBgClass = 'bg-blue-50';
@@ -445,8 +454,14 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
         else if (task.priority === 'medium') titleColorClass = 'text-blue-700 font-bold';
         else if (task.priority === 'low') titleColorClass = 'text-green-700 font-bold';
         
-        // 缩进计算 (每层 24px -> 32px 增加层次感)
-        const indentStyle = `padding-left: ${level * 32}px`;
+        // 缩进计算 
+        // ID Indentation: Smaller step
+        const idIndent = Math.min(level * 12, 60);
+        const idIndentStyle = `padding-left: ${idIndent}px`;
+
+        // Details Indentation: Standard step
+        const detailsIndent = Math.min(level * 24, 120);
+        const detailsIndentStyle = `padding-left: ${detailsIndent}px`;
         
         // 树形连线 HTML (增强版)
         const treeConnector = level > 0 ? `
@@ -456,62 +471,57 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
             </div>
         ` : '';
 
-        // 折叠图标 (增强版)
+        // 折叠图标 (更明显)
         const hasChildren = task.children && task.children.length > 0;
         const toggleIcon = hasChildren 
-            ? `<button onclick="event.stopPropagation(); window.toggleCollapse('${task.id}')" class="mr-2 text-gray-400 hover:text-blue-500 z-10 relative transition-transform ${task.collapsed ? '-rotate-90' : 'rotate-0'}"><i class="ri-arrow-down-s-fill text-lg"></i></button>`
-            : `<span class="w-6 mr-2 inline-block flex justify-center"><i class="ri-checkbox-blank-circle-fill text-[4px] text-gray-300"></i></span>`; // 叶子节点显示小点
+            ? `<button onclick="event.stopPropagation(); window.toggleCollapse('${task.id}')" class="text-gray-500 hover:text-blue-600 z-10 relative transition-colors"><i class="${task.collapsed ? 'ri-arrow-right-s-fill' : 'ri-arrow-down-s-fill'} text-lg"></i></button>`
+            : ``; // Removed placeholder span to save space
 
         html += `
-            <tr class="group transition-colors ${rowBgClass}"
+            <tr class="group/tr transition-colors ${rowBgClass}"
                 draggable="true"
                 ondragstart="window.handleDragStart(event, '${task.id}')"
                 ondragover="window.handleDragOver(event, '${task.id}')"
                 ondragleave="window.handleDragLeave(event, '${task.id}')"
                 ondrop="window.handleDrop(event, '${task.id}')"
                 ondragend="window.handleDragEnd(event)">
-                <!-- 1. 选择列 -->
-                <td class="w-10 text-center">
-                    <input type="checkbox" 
-                        onchange="window.toggleSelection('${task.id}')" 
-                        ${isSelected ? 'checked' : ''}
-                        class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-1">
-                </td>
+                
+                <!-- 1. ID / Checkbox / Toggle Column (Merged) -->
+                <td class="w-20 relative group/idcol p-0 pl-1 align-top pt-2.5">
+                    <div class="flex items-center" style="${idIndentStyle}">
+                        <!-- ID / Checkbox Container -->
+                        <div class="relative w-10 h-5 flex items-center justify-end mr-1">
+                            <!-- Virtual ID -->
+                            <span class="text-xs font-mono text-gray-400 block truncate text-right w-full ${idOpacityClass}">
+                                ${currentId}
+                            </span>
+                            
+                            <!-- Checkbox & Drag (Hover/Selected Visible) - Left Aligned -->
+                            <div class="absolute right-0 top-0 h-full flex items-center justify-end bg-inherit z-20 ${checkboxOpacityClass}">
+                                <i class="ri-draggable text-gray-400 cursor-move mr-0.5 text-xs hover:text-gray-600 opacity-0 group-hover/tr:opacity-100 transition-opacity"></i>
+                                <input type="checkbox" 
+                                    onchange="window.toggleSelection('${task.id}')" 
+                                    ${isSelected ? 'checked' : ''}
+                                    class="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                            </div>
+                        </div>
 
-                <!-- 2. 青蛙列 (新增) -->
-                <td class="w-12 text-center">
-                    <button onclick="event.stopPropagation(); window.toggleFrog('${task.id}')" 
-                        class="text-lg transition hover:scale-110 ${isFrog ? 'opacity-100' : 'opacity-20 grayscale hover:opacity-50'}">
-                        🐸
-                    </button>
-                </td>
-
-                <!-- 3. 行动项 (新位置) -->
-                <td class="w-20 text-center">
-                    <div class="relative group/action flex justify-center z-20 hover:z-50">
-                        <span onclick="event.stopPropagation(); window.toggleTableMenu(this)" 
-                            class="px-1.5 py-0.5 rounded text-xs scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
-                            ${aConfig.label}
-                        </span>
-                        <!-- 简易下拉菜单 -->
-                        <div class="hidden table-menu-dropdown absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
-                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
+                        <!-- Toggle Button (Always Visible, Next to ID) -->
+                        <div class="w-4 flex justify-center">
+                            ${toggleIcon}
                         </div>
                     </div>
                 </td>
 
-                <!-- 4. 任务详情 (核心列) -->
-                <td class="min-w-[300px] border-r border-transparent group-hover:border-gray-100 transition relative overflow-hidden">
+                <!-- 2. 任务详情 (核心列) -->
+                <td class="min-w-[300px] border-r border-transparent group-hover/tr:border-gray-100 transition relative overflow-hidden align-top">
                     ${isFrog ? '<div class="task-frog-watermark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></div>' : ''}
-                    <div style="${indentStyle}" class="relative z-10">
+                    <div class="relative z-10 pl-2">
                         ${treeConnector}
                         <div class="flex items-start table-tree-node py-2">
-                            ${toggleIcon}
                             <div class="flex-1 cursor-pointer" onclick="window.triggerEdit('${task.id}')">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-xs font-mono text-gray-400 select-none">#${task.shortId}</span>
+                                    <span class="text-xs font-mono text-gray-300 select-none opacity-50">#${task.shortId}</span>
                                     <span class="font-medium ${isDone ? 'line-through text-gray-400' : titleColorClass} ${isFrog ? 'font-bold' : ''}">${escapeHtml(task.title)}</span>
                                     ${task.category ? `<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">#${escapeHtml(task.category)}</span>` : ''}
                                     ${(task.tags || []).map(tag => `<span class="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">@${escapeHtml(tag)}</span>`).join('')}
@@ -530,6 +540,30 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                                     </div>
                                 ` : ''}
                             </div>
+                        </div>
+                    </div>
+                </td>
+
+                <!-- 3. 青蛙列 (移动) -->
+                <td class="w-12 text-center">
+                    <button onclick="event.stopPropagation(); window.toggleFrog('${task.id}')" 
+                        class="text-lg transition hover:scale-110 ${isFrog ? 'opacity-100' : 'opacity-20 grayscale hover:opacity-50'}">
+                        🐸
+                    </button>
+                </td>
+
+                <!-- 4. 行动项 (移动) -->
+                <td class="w-20 text-center">
+                    <div class="relative group/action flex justify-center z-20 hover:z-50">
+                        <span onclick="event.stopPropagation(); window.toggleTableMenu(this)" 
+                            class="px-1.5 py-0.5 rounded text-xs scale-90 border cursor-pointer select-none whitespace-nowrap ${aConfig.class}">
+                            ${aConfig.label}
+                        </span>
+                        <!-- 简易下拉菜单 -->
+                        <div class="hidden table-menu-dropdown absolute left-0 top-full mt-1 w-24 bg-white shadow-lg rounded border z-50 text-left py-1">
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-green-600" onclick="window.updateActionType('${task.id}', 'NEXT')">下一步</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-red-600" onclick="window.updateActionType('${task.id}', 'WAITING')">等待</div>
+                            <div class="px-2 py-1 hover:bg-gray-50 cursor-pointer text-xs text-gray-600" onclick="window.updateActionType('${task.id}', 'SOMEDAY')">将来</div>
                         </div>
                     </div>
                 </td>
@@ -555,17 +589,17 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </div>
                 </td>
 
-                <!-- 创建/完成时间 (修改列) -->
+                <!-- 6. 创建/完成时间 -->
                 <td class="w-32 whitespace-nowrap text-center">
                     ${formatTimeColumn(task)}
                 </td>
 
-                <!-- 6. 截止时间 (含开始时间) -->
+                <!-- 7. 截止时间 -->
                 <td class="w-32 whitespace-nowrap editable-cell text-center" onclick="event.stopPropagation(); window.editTaskField('${task.id}', 'dueDate', event)">
                      ${formatSmartDate(task.dueDate, true, isDone)}
                 </td>
 
-                <!-- 7. 状态 -->
+                <!-- 8. 状态 -->
                 <td class="w-24 text-center whitespace-nowrap">
                     <div class="relative group/status flex justify-center z-20 hover:z-50">
                         <span onclick="event.stopPropagation(); window.toggleTableMenu(this)" 
@@ -582,9 +616,9 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
                     </div>
                 </td>
 
-                <!-- 8. 操作 -->
+                <!-- 9. 操作 -->
                 <td class="w-24 text-center">
-                    <div class="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                    <div class="flex items-center justify-center gap-2 opacity-0 group-hover/tr:opacity-100 transition">
                          <button onclick="event.stopPropagation(); window.toggleTaskComplete('${task.id}')" 
                             class="p-1 rounded hover:bg-gray-100 text-blue-600 transition" title="${isDone ? '重做' : '完成'}">
                             <i class="${isDone ? 'ri-refresh-line' : 'ri-check-line'} text-lg"></i>
@@ -598,9 +632,9 @@ function renderTableRows(nodes, level = 0, parentIsLast = true) {
             </tr>
         `;
 
-        // 递归渲染子任务
+        // 递归渲染子任务 (传递 parentIdPrefix)
         if (hasChildren && !task.collapsed) {
-            html += renderTableRows(task.children, level + 1, isLastChild);
+            html += renderTableRows(task.children, level + 1, isLastChild, currentId);
         }
     });
     
@@ -636,16 +670,23 @@ export const render = {
                     <table class="w-full task-table border-collapse">
                         <thead>
                             <tr>
-                                <th class="w-10 text-center">
+                                <!-- 1. ID / Select All (Merged Header) -->
+                                <th class="w-20 text-center pl-2">
                                     <input type="checkbox" id="select-all-checkbox-table" 
                                         onchange="window.toggleSelectAll(this.checked)"
                                         ${isAllSelected ? 'checked' : ''}
-                                        class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                        class="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                                 </th>
+                                
+                                <!-- 2. Task Details -->
+                                <th class="text-gray-500 font-bold pl-2">任务详情</th>
+                                
+                                <!-- 3. Frog -->
                                 <th class="w-12 text-center text-gray-500 font-bold">青蛙</th>
+                                
+                                <!-- 4. Action -->
                                 <th class="w-20 text-center text-gray-500 font-bold">行动</th>
                                 
-                                <th class="text-gray-500 font-bold">任务详情</th>
                                 <th class="w-24 text-center cursor-pointer select-none" onclick="window.toggleSort('priority')">
                                     <div class="flex items-center justify-center gap-1 text-gray-500 font-bold">
                                         优先级 ${store.sortState.find(s=>s.field==='priority') ? (store.sortState.find(s=>s.field==='priority').direction==='asc'?'<i class="ri-arrow-up-line text-blue-600 text-xs"></i>':'<i class="ri-arrow-down-line text-blue-600 text-xs"></i>') : '<i class="ri-expand-up-down-fill text-gray-300 text-xs"></i>'}

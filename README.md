@@ -144,7 +144,7 @@ d:\小工具\web_project\task_manager\
 3. 浏览器访问 `http://localhost:8000/index.html`。
 
 ### 3. 配置 AI
-1. 点击左侧边栏底部的 **"设置"**。
+1. 点击左侧边栏底部的 **"设置"**。 
 2. 输入你的 LLM API 地址 (Base URL) 和 API Key。
 3. 选择模型 (如 `gpt-4o`, `deepseek-chat` 等)。
 4. (可选) 在 "Prompt 设置" 中微调智能整理的提示词。
