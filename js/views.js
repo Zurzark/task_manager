@@ -276,11 +276,9 @@ function renderTableRows(nodes, level = 0, parentIsLast = true, parentIdPrefix =
         let tooltipEl = null;
         let tooltipTimeout = null;
 
-        window.showPriorityTooltip = (el, priority) => {
+        // Generic Tooltip Function
+        window.showGlobalTooltip = (el, htmlContent) => {
             if (tooltipTimeout) clearTimeout(tooltipTimeout);
-            
-            const config = getPriorityBadgeConfig(priority);
-            if (!config || !config.tooltip) return;
 
             if (!tooltipEl) {
                 tooltipEl = document.createElement('div');
@@ -288,7 +286,7 @@ function renderTableRows(nodes, level = 0, parentIsLast = true, parentIdPrefix =
                 document.body.appendChild(tooltipEl);
             }
 
-            tooltipEl.innerHTML = config.tooltip;
+            tooltipEl.innerHTML = htmlContent;
             
             const rect = el.getBoundingClientRect();
             const tooltipRect = tooltipEl.getBoundingClientRect();
@@ -315,11 +313,43 @@ function renderTableRows(nodes, level = 0, parentIsLast = true, parentIdPrefix =
             });
         };
 
-        window.hidePriorityTooltip = () => {
+        window.hideGlobalTooltip = () => {
             if (tooltipEl) {
                 tooltipEl.classList.remove('visible');
-                // Optional: remove from DOM after transition, but hiding is enough for perf
             }
+        };
+
+        // Priority Tooltip Wrapper
+        window.showPriorityTooltip = (el, priority) => {
+            const config = getPriorityBadgeConfig(priority);
+            if (!config || !config.tooltip) return;
+            window.showGlobalTooltip(el, config.tooltip);
+        };
+        window.hidePriorityTooltip = window.hideGlobalTooltip;
+
+        // Relation Tooltip Wrapper
+        window.showRelationTooltip = (el, targetId, relationType) => {
+            const targetTask = store.tasks.find(t => t.id === targetId);
+            if (!targetTask) return;
+            
+            const statusConf = getStatusConfig(targetTask.status);
+            const relationLabel = relationType === 'depends_on' ? '阻塞依赖' : '普通关联';
+            const relationColor = relationType === 'depends_on' ? 'text-red-300' : 'text-purple-300';
+            const relationIcon = relationType === 'depends_on' ? 'ri-lock-2-line' : 'ri-links-line';
+
+            const content = `
+                <div class="text-left min-w-[150px]">
+                    <div class="text-xs ${relationColor} mb-1 flex items-center gap-1 border-b border-gray-600 pb-1">
+                        <i class="${relationIcon}"></i> ${relationLabel}
+                    </div>
+                    <div class="font-bold text-sm mb-1 text-white">${escapeHtml(targetTask.title)}</div>
+                    <div class="text-xs opacity-80 flex items-center gap-2">
+                        <span class="font-mono bg-gray-700 px-1 rounded">#${targetTask.shortId}</span>
+                        <span>${statusConf.label}</span>
+                    </div>
+                </div>
+            `;
+            window.showGlobalTooltip(el, content);
         };
         // --- End Global Tooltip Logic ---
 
@@ -516,29 +546,36 @@ function renderTableRows(nodes, level = 0, parentIsLast = true, parentIdPrefix =
                 <!-- 2. 任务详情 (核心列) -->
                 <td class="min-w-[300px] border-r border-transparent group-hover/tr:border-gray-100 transition relative overflow-hidden align-top">
                     ${isFrog ? '<div class="task-frog-watermark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></div>' : ''}
-                    <div class="relative z-10 pl-2">
+                    <div style="${detailsIndentStyle}" class="relative z-10 pl-2">
                         ${treeConnector}
                         <div class="flex items-start table-tree-node py-2">
                             <div class="flex-1 cursor-pointer" onclick="window.triggerEdit('${task.id}')">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="text-xs font-mono text-gray-300 select-none opacity-50">#${task.shortId}</span>
                                     <span class="font-medium ${isDone ? 'line-through text-gray-400' : titleColorClass} ${isFrog ? 'font-bold' : ''}">${escapeHtml(task.title)}</span>
-                                    ${task.category ? `<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">#${escapeHtml(task.category)}</span>` : ''}
+                                    
+                                    <!-- Relations (Moved to Line 1: After Title, Before Tags) -->
+                                    ${(task.relations && task.relations.length > 0) ? `
+                                        <div class="flex gap-1 items-center">
+                                            ${task.relations.map(r => {
+                                                const icon = r.type === 'depends_on' ? 'ri-lock-2-line' : 'ri-links-line';
+                                                return `<span class="ai-relation-capsule ${r.type === 'depends_on' ? 'ai-capsule-dependency' : 'ai-capsule-relation'} cursor-help"
+                                                              onmouseenter="window.showRelationTooltip(this, '${r.targetId}', '${r.type}')"
+                                                              onmouseleave="window.hideGlobalTooltip()">
+                                                            <i class="${icon}"></i>#${r.targetShortId || '?'}
+                                                        </span>`;
+                                            }).join('')}
+                                        </div>
+                                    ` : ''}
+                                    
                                     ${(task.tags || []).map(tag => `<span class="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">@${escapeHtml(tag)}</span>`).join('')}
                                     ${(task.assignees || []).map(p => `<span class="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded flex items-center gap-0.5"><i class="ri-user-line"></i>${escapeHtml(p)}</span>`).join('')}
                                 </div>
-                                <div class="flex gap-3 mt-1 items-center">
-                                    ${task.description ? `<p class="text-xs text-gray-500 flex-1" title="${escapeHtml(task.description)}">${escapeHtml(task.description.length > 20 ? task.description.substring(0, 20) + '...' : task.description)}</p>` : ''}
-                                </div>
                                 
-                                ${(task.relations && task.relations.length > 0) ? `
-                                    <div class="flex gap-2 mt-1">
-                                        ${task.relations.map(r => {
-                                            const icon = r.type === 'depends_on' ? 'ri-lock-2-line' : 'ri-links-line';
-                                            return `<span class="text-[10px] text-gray-400 flex items-center gap-0.5"><i class="${icon}"></i>#${r.targetShortId || '?'}</span>`;
-                                        }).join('')}
-                                    </div>
-                                ` : ''}
+                                <div class="flex gap-2 mt-1 items-center h-5 overflow-hidden text-xs">
+                                    <!-- Description (Truncated) -->
+                                    ${task.description ? `<p class="text-gray-500 truncate flex-1" title="${escapeHtml(task.description)}">${escapeHtml(task.description)}</p>` : `<div class="flex-1"></div>`}
+                                </div>
                             </div>
                         </div>
                     </div>
