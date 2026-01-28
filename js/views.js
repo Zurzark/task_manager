@@ -518,27 +518,41 @@ function renderTableRows(nodes, level = 0, parentIsLast = true, parentIdPrefix =
                 
                 <!-- 1. ID / Checkbox / Toggle Column (Merged) -->
                 <td class="w-20 relative group/idcol p-0 pl-1 align-top pt-2.5">
-                    <div class="flex items-center" style="${idIndentStyle}">
-                        <!-- ID / Checkbox Container -->
-                        <div class="relative w-10 h-5 flex items-center justify-end mr-1">
-                            <!-- Virtual ID -->
-                            <span class="text-xs font-mono text-gray-400 block truncate text-right w-full ${idOpacityClass}">
+                    <div class="flex items-center w-full">
+                         <!-- Fixed Width Checkbox Container (Always aligned left) -->
+                         <div class="w-8 flex justify-center flex-shrink-0">
+                            <!-- Checkbox & Drag (Hover/Selected Visible) -->
+                            <div class="relative w-full h-5 flex items-center justify-center">
+                                <div class="absolute inset-0 flex items-center justify-center bg-inherit z-20 ${checkboxOpacityClass}">
+                                    <i class="ri-draggable text-gray-400 cursor-move mr-0.5 text-xs hover:text-gray-600 opacity-0 group-hover/tr:opacity-100 transition-opacity"></i>
+                                    <input type="checkbox" 
+                                        onchange="window.toggleSelection('${task.id}')" 
+                                        ${isSelected ? 'checked' : ''}
+                                        class="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                </div>
+                            </div>
+                         </div>
+
+                        <!-- ID & Toggle (Indented) -->
+                        <div class="flex items-center" style="${idIndentStyle}">
+                            <!-- Virtual ID (Hidden when selected/hovered is handled by opacity on the ID span itself, but we want ID to shift? No, ID was replacing checkbox. 
+                                 Wait, user wants alignment. Checkbox MUST be aligned with header.
+                                 So Checkbox should NOT be indented. ID usually is indented.
+                                 Let's separate them. 
+                                 
+                                 New Layout:
+                                 [Checkbox (Fixed Left)] [Indent Spacer] [ID] [Toggle]
+                             -->
+                             
+                             <!-- Virtual ID -->
+                            <span class="text-xs font-mono text-gray-400 block truncate ${idOpacityClass} ml-1">
                                 ${currentId}
                             </span>
                             
-                            <!-- Checkbox & Drag (Hover/Selected Visible) - Left Aligned -->
-                            <div class="absolute right-0 top-0 h-full flex items-center justify-end bg-inherit z-20 ${checkboxOpacityClass}">
-                                <i class="ri-draggable text-gray-400 cursor-move mr-0.5 text-xs hover:text-gray-600 opacity-0 group-hover/tr:opacity-100 transition-opacity"></i>
-                                <input type="checkbox" 
-                                    onchange="window.toggleSelection('${task.id}')" 
-                                    ${isSelected ? 'checked' : ''}
-                                    class="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                            <!-- Toggle Button -->
+                            <div class="w-4 flex justify-center ml-1">
+                                ${toggleIcon}
                             </div>
-                        </div>
-
-                        <!-- Toggle Button (Always Visible, Next to ID) -->
-                        <div class="w-4 flex justify-center">
-                            ${toggleIcon}
                         </div>
                     </div>
                 </td>
